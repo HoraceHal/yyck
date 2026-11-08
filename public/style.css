@@ -37,7 +37,7 @@ p { margin: 0 0 .8em; }
 button { font: inherit; color: inherit; cursor: pointer; }
 :focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; border-radius: 6px; }
 
-.top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+.top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; background: var(--bg); background: color-mix(in srgb, var(--bg) 92%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: baseline; gap: 8px; }
 .brand-cn { font: 700 1.4rem var(--cn); color: var(--brand); }
 .brand-sub { color: var(--muted); font-size: .8rem; }
@@ -238,3 +238,9 @@ button, a, .spk, .opt, .tok, .chip, .tab, .btn, summary { touch-action: manipula
 .spk.playing { background: var(--brand-soft); border-color: var(--brand); animation: spkpulse 1s ease-in-out infinite; }
 @keyframes spkpulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 45%, transparent); } 50% { box-shadow: 0 0 0 8px transparent; } }
 @media (prefers-reduced-motion: reduce) { .spk.playing { animation: none; } }
+
+/* ---- 兼容:iPhone 刘海/横屏安全区 ---- */
+@supports (padding: max(0px)) {
+  .top { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+  main { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); padding-bottom: max(80px, calc(env(safe-area-inset-bottom) + 60px)); }
+}

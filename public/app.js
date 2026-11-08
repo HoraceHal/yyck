@@ -76,27 +76,36 @@ let voices = [];
 function loadVoices() { try { voices = window.speechSynthesis ? speechSynthesis.getVoices() : []; } catch (e) { voices = []; } updateVoiceNote(); }
 const isYue = v => /^(zh[-_]HK|yue)/i.test(v.lang) || /cantonese|粵|粤/i.test(v.name);
 const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-// 评分:粤语优先;"增强/自然/神经网络"等高质量声音加分(音质和响度通常更好)
-const voiceScore = v => { let sc = /^zh[-_]HK/i.test(v.lang) ? 10 : 9; if (/enhanced|premium|增强|增強|优化|優化|natural|neural/i.test(v.name)) sc += 5; if (/online/i.test(v.name)) sc += 1; return sc; };
-let voiceCache = null;
-function pickVoice() {
-  if (!voices.length && window.speechSynthesis) { try { voices = speechSynthesis.getVoices(); } catch (e) { /* ignore */ } } // iOS:语音列表可能晚到,点击时再取一次
-  if (S.set.voice) { const v = voices.find(x => x.name === S.set.voice); if (v) return v; }
-  if (voiceCache && voices.includes(voiceCache)) return voiceCache;
-  return (voiceCache = voices.filter(isYue).sort((a, b) => voiceScore(b) - voiceScore(a))[0] || null);
+// 评分:粤语优先;"增强/自然/神经网络"声音加分;本机声音略加分(不依赖网络,更稳)
+const voiceScore = v => { let sc = /^zh[-_]HK/i.test(v.lang) ? 10 : 9; if (/enhanced|premium|增强|增強|优化|優化|natural|neural/i.test(v.name)) sc += 5; if (/online/i.test(v.name)) sc += 1; if (v.localService) sc += 0.5; return sc; };
+
+// 记住"这个标签页里播放失败过的声音"(如没有代理时连不上的 Google 在线语音),之后自动跳过
+let badVoices = new Set();
+try { badVoices = new Set(JSON.parse(sessionStorage.getItem('jyutung.badv') || '[]')); } catch (e) { /* ignore */ }
+function markBad(v) { badVoices.add(v.name); try { sessionStorage.setItem('jyutung.badv', JSON.stringify([...badVoices])); } catch (e) { /* ignore */ } updateVoiceNote(); }
+function clearBad() { badVoices.clear(); try { sessionStorage.removeItem('jyutung.badv'); } catch (e) { /* ignore */ } updateVoiceNote(); }
+
+// 候选声音列表:手动指定的优先 → 没失败过的(按评分)→ 失败过的垫底
+function voiceList() {
+  if (!voices.length && window.speechSynthesis) { try { voices = speechSynthesis.getVoices(); } catch (e) { /* ignore */ } } // iOS:语音列表可能晚到
+  const ys = voices.filter(isYue).sort((a, b) => voiceScore(b) - voiceScore(a));
+  const list = ys.filter(v => !badVoices.has(v.name)).concat(ys.filter(v => badVoices.has(v.name)));
+  const manual = S.set.voice ? voices.find(x => x.name === S.set.voice) : null;
+  return manual ? [manual].concat(list.filter(v => v !== manual)) : list;
 }
+function pickVoice() { return voiceList()[0] || null; }
+[300, 800, 2000, 4000].forEach(ms => setTimeout(() => { if (window.speechSynthesis && !voices.length) loadVoices(); }, ms)); // 有的浏览器很晚才给出语音列表
 
 /* ===== 发音引擎:优先播放真人录音,没有录音才用语音合成 ===== */
 const hashText = t => { let h = 5381; for (const ch of t) h = ((h << 5) + h + ch.codePointAt(0)) >>> 0; return h.toString(36); };
 let AUDIO = {};      // 仓库里的真人录音:hash -> 文件名(public/audio/manifest.json)
 let LOCALREF = {};   // 本机录的标准音:hash -> objectURL
-let curAudio = null, seqId = 0, rateOverride = null, lastCancel = 0;
+let curAudio = null, seqId = 0, rateOverride = null, lastCancel = 0, engineWarm = false, lastNoVoiceToast = 0, lastSpeak = { t: '', at: 0 };
 fetch('audio/manifest.json', { cache: 'no-cache' }).then(r => (r.ok ? r.json() : {})).then(j => { AUDIO = j || {}; }).catch(() => {});
 const recUrl = text => { const h = hashText(text.trim()); return LOCALREF[h] || (AUDIO[h] ? 'audio/' + AUDIO[h] : null); };
 
-// iOS:让网页音频按"媒体播放"处理(不被静音拨片压住);录音结束后需要重新设置
-function setPlaybackSession() { try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* 不支持就忽略 */ } }
-setPlaybackSession();
+// iOS 音频会话:只在播放"音频文件"时设为 playback(不被静音拨片压住);语音合成不碰它,避免首次发声被打断
+function setSession(type) { try { if (navigator.audioSession) navigator.audioSession.type = type; } catch (e) { /* 不支持就忽略 */ } }
 
 // 音量增强:仅对"音频文件"(真人录音)有效;语音合成的音量由系统控制,网页无法放大
 let actx = null, gainNode = null;
@@ -112,6 +121,7 @@ function audioCtx() {
 }
 function playFile(url) {
   return new Promise(res => {
+    setSession('playback');
     const a = new Audio(url); a.preload = 'auto'; a.playsInline = true; curAudio = a;
     a.onended = a.onerror = () => res();
     if ((S.set.boost || 1) > 1.05) {
@@ -129,25 +139,61 @@ function stopAll() {
   try { const sy = window.speechSynthesis; if (sy && (sy.speaking || sy.pending)) { sy.cancel(); lastCancel = performance.now(); } } catch (e) { /* ignore */ }
 }
 function ttsSpeak(u) {
+  try { if (speechSynthesis.paused) speechSynthesis.resume(); } catch (e) { /* ignore */ }
   const wait = Math.max(0, 100 - (performance.now() - lastCancel));
   if (wait > 0) setTimeout(() => speechSynthesis.speak(u), wait); else speechSynthesis.speak(u);
 }
-function playOne(text) {
+function noVoiceWorked() {
+  const now = Date.now(); if (now - lastNoVoiceToast < 15000) return; lastNoVoiceToast = now;
+  const list = voiceList();
+  toast(list.length && list.every(v => !v.localService)
+    ? '粤语在线语音连不上(Chrome 的 Google 语音需要能访问 Google)。请改用 Edge 浏览器,或看「设置」里的办法。'
+    : '粤语语音没能播放,请到「设置」里试听,或换一个声音。');
+}
+// 用语音合成播放一句;当前声音失败(出错/超时没开口/瞬间结束)就自动换下一个声音
+function playTTS(text, my) {
   return new Promise(res => {
-    const url = recUrl(text);
-    if (url) { playFile(url).then(res); return; }
-    const v = pickVoice();
-    if (!v) { res(); return; }
-    const u = new SpeechSynthesisUtterance(text.replace(/[\s]+/g, ' '));
-    u.voice = v; u.lang = v.lang; u.rate = rateOverride || S.set.rate; u.volume = 1; u.pitch = 1;
-    let tm, fin = false;
-    const done = () => { if (!fin) { fin = true; clearTimeout(tm); res(); } };
-    u.onend = u.onerror = done;
-    tm = setTimeout(done, 3000 + text.length * 450); // 个别 Safari 不触发 onend,防止卡住
-    ttsSpeak(u);
+    const cands = voiceList(); let idx = 0, fin = false;
+    const finish = () => { if (!fin) { fin = true; res(); } };
+    if (!cands.length) { finish(); return; }
+    const attempt = () => {
+      if (my !== seqId) { finish(); return; }
+      if (idx >= cands.length) { noVoiceWorked(); finish(); return; }
+      const v = cands[idx++];
+      const u = new SpeechSynthesisUtterance(text.replace(/[\s]+/g, ' '));
+      u.voice = v; u.lang = v.lang; u.rate = rateOverride || S.set.rate; u.volume = 1; u.pitch = 1;
+      let started = false, over = false, tm = 0, st = 0, t0 = performance.now(), ts = 0;
+      const clear = () => { clearTimeout(tm); clearTimeout(st); };
+      const fail = () => {
+        if (over) return; over = true; clear();
+        try { speechSynthesis.cancel(); lastCancel = performance.now(); } catch (e) { /* ignore */ }
+        if (my !== seqId) { finish(); return; }
+        if (!started) markBad(v);
+        if (!started) attempt(); else finish();
+      };
+      u.onstart = () => { started = true; ts = performance.now(); clearTimeout(st); };
+      u.onend = () => {
+        if (over) return; over = true; clear();
+        // 在线语音断网时,有的会"瞬间结束且没有声音":视为失败,换下一个
+        if (!v.localService && text.trim().length >= 2 && performance.now() - (ts || t0) < 90 && my === seqId) { markBad(v); attempt(); return; }
+        finish();
+      };
+      u.onerror = ev => {
+        if (ev && (ev.error === 'interrupted' || ev.error === 'canceled')) { if (!over) { over = true; clear(); finish(); } } else fail();
+      };
+      st = setTimeout(() => { if (!started) fail(); }, v.localService ? 4000 : 2500);
+      tm = setTimeout(() => { if (!over) { over = true; clear(); finish(); } }, 3000 + text.length * 450); // 个别 Safari 不触发 onend,防止卡住
+      if (!engineWarm) { // 第一次发声前先"静音预热"引擎,把启动时的结巴/重音吃掉(iPhone 首次点击会出现"你你好")
+        engineWarm = true;
+        const w = new SpeechSynthesisUtterance('好'); w.voice = v; w.lang = v.lang; w.volume = 0; w.rate = 2; ttsSpeak(w);
+      }
+      ttsSpeak(u);
+    };
+    attempt();
   });
 }
-async function playSeq(texts) { const my = ++seqId; for (const t of texts) { if (my !== seqId) return; await playOne(t); } }
+function playOne(text, my) { const url = recUrl(text); return url ? playFile(url) : playTTS(text, my); }
+async function playSeq(texts) { const my = ++seqId; for (const t of texts) { if (my !== seqId) return; await playOne(t, my); } }
 
 // 点击后立刻给按钮"正在播放"的反馈,感觉更跟手
 function markPlaying(btn, p) {
@@ -157,6 +203,9 @@ function markPlaying(btn, p) {
   p.then(off, off); setTimeout(off, 15000);
 }
 function speak(text, btn) {
+  const now = performance.now();
+  if (text === lastSpeak.t && now - lastSpeak.at < 400) return true; // 同一句 0.4 秒内重复触发:忽略(防止"你…你好"式的打断重来)
+  lastSpeak = { t: text, at: now };
   if (!recUrl(text)) {
     if (!window.speechSynthesis) { toast('当前浏览器不支持语音朗读,请换用 Edge / Chrome / Safari'); return false; }
     if (!pickVoice()) { toast('没有找到粤语语音,请看页面上方的提示或「设置」'); return false; }
@@ -174,14 +223,20 @@ const warmedRecs = new Set();
 function warmRecs(texts) { // 提前把真人录音下载好,点击时无需等待网络
   texts.forEach(t => { const u = recUrl(t); if (u && !u.startsWith('blob:') && !warmedRecs.has(u)) { warmedRecs.add(u); fetch(u, { cache: 'force-cache' }).catch(() => {}); } });
 }
-// 第一次触摸时:确认音频会话 / 取语音列表 / 唤醒音频上下文(都在用户手势内完成)
-['touchend', 'click'].forEach(ev => document.addEventListener(ev, () => { setPlaybackSession(); if (window.speechSynthesis && !voices.length) loadVoices(); if (Object.keys(AUDIO).length || Object.keys(LOCALREF).length) { try { audioCtx(); } catch (e) { /* ignore */ } } }, { once: true, capture: true }));
+document.addEventListener('visibilitychange', () => { if (document.hidden) stopAll(); }); // 切走页面就停声,避免回来时还在断断续续地播
+// 第一次触摸时:取语音列表;有真人录音时再唤醒音频上下文(都在用户手势内完成)
+['touchend', 'click'].forEach(ev => document.addEventListener(ev, () => { if (window.speechSynthesis && !voices.length) loadVoices(); if (Object.keys(AUDIO).length || Object.keys(LOCALREF).length) { try { audioCtx(); } catch (e) { /* ignore */ } } }, { once: true, capture: true }));
 function updateVoiceNote() {
   const n = $('#vnote');
-  const ok = !!pickVoice();
+  const list = voiceList(), ok = list.length > 0;
   const loading = !voicesSettled && window.speechSynthesis && voices.length === 0;
-  n.hidden = ok || loading;
-  if (!n.hidden) n.innerHTML = '⚠ 这个浏览器里没有找到<b>粤语(中文-香港)语音</b>,点喇叭会没有声音。推荐用 <b>Edge</b> 或 <b>Chrome</b> 打开本页,或查看 <a href="#/settings" style="text-decoration:underline">设置页的解决办法</a>。';
+  const allBad = ok && list.every(v => badVoices.has(v.name));
+  const googleOnly = ok && list.every(v => /google/i.test(v.name));
+  n.hidden = !!loading || (ok && !allBad && !googleOnly);
+  if (n.hidden) return;
+  if (!ok) n.innerHTML = '⚠ 这个浏览器里没有找到<b>粤语(中文-香港)语音</b>,点喇叭会没有声音。推荐用 <b>Edge</b> 或 <b>Chrome</b> 打开本页,或查看 <a href="#/settings" style="text-decoration:underline">设置页的解决办法</a>。';
+  else if (allBad) n.innerHTML = '⚠ 粤语语音刚才播放失败了(这个声音可能需要联网)。可以改用 <b>Edge</b> 浏览器,或查看 <a href="#/settings" style="text-decoration:underline">设置页的解决办法</a>。';
+  else n.innerHTML = '⚠ 当前用的是 Chrome 的 <b>Google 在线粤语语音</b>,没有代理时可能没有声音。推荐改用 <b>Edge</b>,或查看 <a href="#/settings" style="text-decoration:underline">设置页</a>。';
 }
 let voicesSettled = false;
 if (window.speechSynthesis) { loadVoices(); speechSynthesis.addEventListener('voiceschanged', loadVoices); setTimeout(() => { voicesSettled = true; loadVoices(); }, 1500); } else voicesSettled = true;
@@ -888,7 +943,7 @@ async function recStop(save = true) {
   await new Promise(res => { r.onstop = res; try { r.stop(); } catch (e) { res(); } });
   if (RC.stream) RC.stream.getTracks().forEach(t => t.stop());
   RC.stream = null;
-  setPlaybackSession();
+  setSession('auto');
   if (save && RC.chunks.length) {
     const blob = new Blob(RC.chunks, { type: RC.mt || 'audio/webm' });
     await ADB.put(RC.mode, RC.h, { blob, type: RC.mt, text: RC.text });
@@ -918,11 +973,19 @@ function viewSettings() {
   </div>
   ${cur ? '' : `<div class="warn" style="margin-top:14px"><b>没有声音怎么办?</b><ol class="plan"><li>换用 <b>Microsoft Edge</b> 打开本页(自带高质量粤语语音:HiuGaai / HiuMaan / WanLung)。</li><li>或用 <b>Chrome</b>,通常自带「粤语(香港)」语音。</li><li>Windows 系统:设置 → 时间和语言 → 语言和区域 → 添加语言「中文(香港特别行政区)」,并勾选安装「文本转语音」。装好后重启浏览器。</li><li>手机:Android 的 Chrome 在系统「文字转语音」里安装粤语语音包;iPhone 的 Safari 在 设置 → 辅助功能 → 朗读内容 → 声音 → 粤语 中下载。</li></ol></div>`}
   <div class="card" style="margin-top:14px"><h3>🔊 发音与音量</h3>
+    <div class="small muted" style="margin-bottom:6px">可用的粤语声音:${voiceList().map(v => `${esc(v.name)}(${v.localService ? '本机' : '在线'}${badVoices.has(v.name) ? ',刚才播放失败' : ''})`).join(';') || '无'} ${badVoices.size ? '<button class="btn sm" data-act="resetBad">重新检测</button>' : ''}</div>
     <div class="small" style="margin-bottom:8px">当前使用的声音:${cur ? `<b>${esc(cur.name)}</b>(${esc(cur.lang)},${cur.localService ? '本机' : '在线'})` : '<b>没有找到粤语声音</b>'}${IS_IOS ? ' · 已识别为 iPhone / iPad' : ''}</div>
     <div class="field"><label for="boost"><b>音量增强</b> <span class="muted small" id="boostV">${(S.set.boost || 1).toFixed(1)}×</span></label>
       <input id="boost" type="range" min="1" max="3" step="0.1" value="${S.set.boost || 1}" data-set="boost">
       <span class="muted small">只对「真人录音」生效。手机自带的语音合成,音量由系统控制,网页无法放大。</span></div>
     <div class="row"><button class="btn sm" data-act="testVol">🔊 试听</button><button class="btn sm" data-act="testSlow">🐢 慢速试听</button></div>
+    <details style="margin-top:12px"><summary><b>电脑上点喇叭没声音怎么办?</b></summary>
+      <ol class="plan small">
+        <li><b>Chrome 的粤语是 Google 在线语音</b>,需要能访问 Google;没有代理时会失败。网页会自动换别的声音,如果没有别的,就没声音。</li>
+        <li><b>改用 Microsoft Edge</b>:它自带微软的粤语语音(HiuGaai / HiuMaan / WanLung),通常不需要代理。</li>
+        <li><b>安装 Windows 本机粤语语音</b>:设置 → 时间和语言 → 语音 → 添加语音,选「中文(香港)」。装好后重启浏览器,上面会显示"本机"声音,不依赖网络。</li>
+        <li>装好或换浏览器后,点上面的「重新检测」,再「试听」。</li>
+      </ol></details>
     <details style="margin-top:12px"><summary><b>iPhone 声音小 / 没声音怎么办?</b></summary>
       <ol class="plan small">
         <li><b>检查机身左侧的静音拨片</b>:露出橙色就是静音,拨回去。iPhone 上网页的语音可能被它压住。</li>
@@ -1016,6 +1079,7 @@ const ACT = {
     } else trainNext(true);
   },
   testVoice() { speak('你好,我係新學員'); },
+  resetBad() { clearBad(); viewSettings(); toast('已重新检测,请点「试听」'); },
   testVol() { speak('你好,我係新學員。多謝晒!'); },
   testSlow() { rateOverride = 0.55; stopAll(); playSeq(['你好,我係新學員。多謝晒!']).then(() => { rateOverride = null; }); },
   reset() { if (confirm('确定清空全部学习进度吗?此操作不能撤销。')) { S = defaults(); save(); updateBadge(); location.hash = '#/'; route(); } }
