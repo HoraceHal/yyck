@@ -5,7 +5,7 @@ const app = $('#app');
 
 /* ================= 状态 ================= */
 const KEY = 'jyutung.v1';
-const defaults = () => ({ done: {}, srs: {}, xp: 0, streak: 0, lastDay: '', toneBest: 0, soundsDone: false, set: { jp: true, rate: 0.8, voice: '' } });
+const defaults = () => ({ done: {}, srs: {}, xp: 0, streak: 0, lastDay: '', toneBest: 0, soundsDone: false, rv: {}, set: { jp: true, rate: 0.8, voice: '' } });
 function load() {
   try {
     const o = JSON.parse(localStorage.getItem(KEY)) || {};
@@ -119,8 +119,8 @@ function grade(id, g) {
 function updateBadge() { const n = dueIds().length, b = $('#dueBadge'); b.hidden = !n; b.textContent = n; }
 
 /* ================= 页面:首页 ================= */
-const STAGES = { L1: 1, L8: 1, L2: 1, L3: 1, L4: 2, L9: 2, L5: 2, L6: 2, L10: 2, L7: 3, L11: 3, L12: 3, L13: 3, L14: 3, L15: 3 };
-const STAGE_NAMES = { 1: '第一阶段 · 能开口:打招呼、听不懂怎么办、数字时间', 2: '第二阶段 · 能生活:吃、买、行、住', 3: '第三阶段 · 能交流:家人、闲聊、看病、约人、地道口语、求助' };
+const STAGES = { L1: 1, L8: 1, L2: 1, L3: 1, L4: 2, L9: 2, L18: 2, L20: 2, L5: 2, L6: 2, L19: 2, L10: 2, L16: 3, L7: 3, L21: 3, L17: 3, L22: 3, L11: 3, L12: 3, L13: 3, L14: 3, L15: 3 };
+const STAGE_NAMES = { 1: '第一阶段 · 能开口:打招呼、听不懂怎么办、数字时间', 2: '第二阶段 · 能生活:吃、买、行、住(广州版)', 3: '第三阶段 · 能融入:见家人、聊家常、和女朋友交流' };
 function viewHome() {
   const due = dueIds().length, doneN = LESSONS.filter(l => S.done[l.id]).length;
   const nextL = LESSONS.find(l => !S.done[l.id]);
@@ -139,6 +139,16 @@ function viewHome() {
       <div class="stat"><b>✅ ${doneN}/${LESSONS.length}</b><span>完成课程</span></div>
     </div>
   </section>
+
+  <div class="card" style="margin-top:14px;border:2px solid var(--brand)">
+    <h2 style="margin-bottom:4px">💞 见家长速成路线(推荐先走这条)</h2>
+    <p class="muted small" style="margin:0 0 10px">目标:先能和女朋友的妈妈(地道广州人)顺利聊起来。约 2 周,按顺序点:</p>
+    <div class="chips">
+      <a class="chip" href="#/sounds"><b>1.</b> 发音入门</a>
+      ${['L1', 'L8', 'L18', 'L16', 'L21'].map((id, i) => `<a class="chip" href="#/lesson/${id}"><b>${i + 2}.</b> ${lessonById(id).title}</a>`).join('')}
+      <a class="chip" href="#/particles"><b>7.</b> 语气词(吖、啦、喎…)</a>
+    </div>
+  </div>
 
   <div class="row" style="margin:16px 0 4px"><h2 class="grow" style="margin:0">学习路线</h2>${due ? `<a class="btn primary sm" href="#/review">复习 ${due} 个 →</a>` : ''}</div>
   <div class="path">
@@ -163,6 +173,9 @@ function viewHome() {
   <div class="grid" style="margin-top:14px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">
     <a class="card" href="#/guide"><b>📖 新手指南</b><br><span class="muted small">粤语是什么、粤拼怎么读、四周计划、常见误区</span></a>
     <a class="card" href="#/phrasebook"><b>🔎 常用句库</b><br><span class="muted small">想说什么就搜,和本地人交流时临场查</span></a>
+    <a class="card" href="#/patterns"><b>🧩 句型模板(造句机)</b><br><span class="muted small">14 个万能框架,换个词就是新句子</span></a>
+    <a class="card" href="#/particles"><b>💬 语气词</b><br><span class="muted small">呀 啦 喇 㗎 咩 喎 吖……听出长辈的语气</span></a>
+    <a class="card" href="#/verify"><b>✅ 请女朋友帮我校对</b><br><span class="muted small">让地道广州人逐条检查,发给我修正</span></a>
   </div>`;
 }
 
@@ -462,14 +475,21 @@ function viewGuide() {
     <li><b>aa 和 a 是两个音。</b>三 saam1(长)≠ 心 sam1(短)。</li>
     <li><b>-p -t -k 收尾要"顿住"。</b>食 sik6 的 k 不要发出爆破声,嘴型到位就停。</li>
     <li><b>别用普通话声调去套。</b>"好"普通话是 hǎo(降升),粤语 hou2 是高升。</li>
-    <li><b>别被"懶音"吓到。</b>很多本地人会把 n 说成 l(你 → lei5)、把 ng 省掉(我 → o5)。你听到了知道是同一个字就行,自己按标准读。</li></ol>`)}
-  ${sec('6. 四周学习计划(建议节奏)', `
+    <li><b>别被"懶音"吓到。</b>很多本地人会把 n 说成 l(你 → lei5)、把 ng 省掉(我 → o5)。还有 gw/kw 读成 g/k(國 gwok3 → gok3)。广州的长辈这样说很常见,你听到了知道是同一个字就行,自己按标准读。</li></ol>`)}
+  ${sec('6. 学习计划:2 周见家长速成 / 5 周完整版', `
+    <p><b>如果很快要见女朋友的妈妈,先走「速成路线」(约 2 周):</b></p>
+    <ol class="plan"><li>发音入门(声调听辨过关)</li>
+    <li>第 1 课 打招呼 → 听不懂怎么办(这是救命课)</li>
+    <li>广州美食与饮早茶 → <b>见女朋友的妈妈</b> → 和长辈聊家常</li>
+    <li>「语气词」页:重点学 呀、啦、吖、喎、咯</li></ol>
+    <p><b>5 周完整版:</b></p>
     <table class="cmp"><thead><tr><th>周</th><th>学什么</th><th>目标</th></tr></thead><tbody>
-    <tr><td><b>第 1 周</b></td><td>发音入门(声调听辨过关)· 打招呼 · 听不懂怎么办 · 数字与价钱</td><td class="small">能自我介绍,能说"请你说慢一点"</td></tr>
-    <tr><td><b>第 2 周</b></td><td>日期时间 · 茶餐厅点餐 · 点餐进阶 · 购物</td><td class="small">能点餐、问价、约时间</td></tr>
-    <tr><td><b>第 3 周</b></td><td>交通 · 酒店与打车 · 家人日常 · 闲聊</td><td class="small">能问路、打车、聊工作和兴趣</td></tr>
-    <tr><td><b>第 4 周</b></td><td>天气与看医生 · 加联系方式约人 · 地道口语 · 紧急求助</td><td class="small">能和本地人聊上 5 分钟</td></tr></tbody></table>
-    <p class="small muted">每周末:把本周的课重做一遍练习,并清空「复习」。节奏可以按你自己的进度调整。</p>`)}
+    <tr><td><b>第 1 周</b></td><td>发音入门 · 打招呼 · 听不懂怎么办 · 数字与价钱 · 日期时间</td><td class="small">能自我介绍,会请对方说慢一点</td></tr>
+    <tr><td><b>第 2 周</b></td><td>茶餐厅点餐 · 点餐进阶 · 广州美食与饮早茶 · 街市买菜与付款</td><td class="small">能点餐、饮早茶、买菜付款</td></tr>
+    <tr><td><b>第 3 周</b></td><td>购物讲价 · 交通问路 · 广州地名与出行 · 酒店与打车</td><td class="small">能逛街、问路、打车</td></tr>
+    <tr><td><b>第 4 周</b></td><td>见女朋友的妈妈 · 家人日常 · 和长辈聊家常 · 和女朋友</td><td class="small">能和家人聊天、说心里话</td></tr>
+    <tr><td><b>第 5 周</b></td><td>节日祝福 · 闲聊 · 看医生 · 加联系方式 · 地道口语 · 紧急求助 · 句型模板与语气词</td><td class="small">能和广州人聊上 5 分钟</td></tr></tbody></table>
+    <p class="small muted">每周末把本周的课重做一遍练习,并清空「复习」。节奏可按自己的进度调整。</p>`)}
   ${sec('7. 每天怎么练?(跟读四步法)', `
     <ol class="plan"><li><b>听</b>:先点喇叭听 2 遍,不看字,感受语调。</li>
     <li><b>看</b>:再看汉字和粤拼,对一遍。</li>
@@ -484,23 +504,33 @@ function viewGuide() {
     <li><b>说错没关系。</b>本地人通常会为你愿意开口而高兴。</li>
     <li><b>用「句库」临场查:</b>想说什么,搜普通话关键词就能找到对应的粤语说法。</li></ul>
     <a class="btn sm" href="#/phrasebook">打开常用句库 →</a>`)}
-  ${sec('9. 说得更地道:香港 vs 广州,以及中英夹杂', `
-    <p>粤语在不同地区有些说法不一样。本站以<b>香港常用说法</b>为主,下面这些最容易踩坑:</p>
-    <table class="cmp"><thead><tr><th>意思</th><th>香港</th><th>广州/内地</th></tr></thead><tbody>
-    <tr><td>外卖/带走</td><td><b>外賣、帶走</b>(打包 = 吃剩的带走)</td><td>打包</td></tr>
-    <tr><td>菜单</td><td><b>餐牌</b></td><td>菜單</td></tr>
-    <tr><td>聊天软件</td><td><b>WhatsApp</b></td><td>微信</td></tr>
-    <tr><td>紧急电话</td><td><b>999</b></td><td>110 / 120</td></tr>
-    <tr><td>交通卡</td><td><b>八達通</b></td><td>羊城通 / 扫码</td></tr></tbody></table>
-    <p class="small muted">具体以你所在的地方为准,听到对方的说法,跟着用就对了。</p>
-    <p><b>中英夹杂很正常。</b>香港人常把英文单词直接放进粤语句子:<b>OK</b>、<b>sorry</b>、<b>bye bye</b>、<b>thank you</b>、<b>check in</b>。你不用刻意避免,自然地说就好。</p>
+  ${sec('9. 和女朋友的妈妈交流:实战指南', `
+    <p>她妈妈是地道广州人、听不懂普通话,所以你说的每一句粤语都很珍贵。几个实用原则:</p>
+    <ol class="plan">
+    <li><b>称呼先问女朋友。</b>最稳妥是叫「阿姨」(aa3 ji1)。不确定就问她:「我應該點稱呼你媽媽呀?」</li>
+    <li><b>开口三件事:笑、慢、复述。</b>听不懂就笑着说「阿姨,唔該你講慢啲」(第 2 课);抓住关键词,重复一遍确认:「你係話……呀?」(你是说……吗?)</li>
+    <li><b>老人家的口音和习惯:</b>语速快,常把 n 说成 l(你 → lei5)、gw/kw 说成 g/k(國 → gok3),爱用语气词(吖、啦、喎、咯)。她说「食多啲啦」「飲啖湯吖」就是在关心你。</li>
+    <li><b>她大概会问你:</b>你幾多歲?做咩工作?食咗飯未?屋企有邊啲人?幾時結婚?——第 21 课有完整回答。</li>
+    <li><b>能加分的小事:</b>夸饭菜「好好食」、说「食飽喇,多謝阿姨」、主动「我嚟洗碗」、走时说「下次再嚟探阿姨」。</li>
+    <li><b>让女朋友当你的老师:</b>用「校对」页(首页或设置里)让她逐条听、逐条看,告诉你哪里不地道。这是提高准确度最快的办法。</li></ol>
+    <div class="row"><a class="btn sm" href="#/lesson/L16">去学「见女朋友的妈妈」→</a><a class="btn sm" href="#/verify">请她帮我校对 →</a></div>`)}
+  ${sec('10. 广州 vs 香港:说法不同的地方', `
+    <p>本站以<b>广州说法</b>为主。下面这些地方香港说法不同,和香港人交流时用得上:</p>
+    <table class="cmp"><thead><tr><th>意思</th><th>广州(本站)</th><th>香港</th></tr></thead><tbody>
+    <tr><td>外卖/带走</td><td><b>打包</b></td><td>帶走、外賣(打包 = 吃剩的带走)</td></tr>
+    <tr><td>菜单</td><td><b>菜單</b></td><td>餐牌</td></tr>
+    <tr><td>聊天软件</td><td><b>微信</b></td><td>WhatsApp</td></tr>
+    <tr><td>报警/急救</td><td><b>110 / 120</b></td><td>999</td></tr>
+    <tr><td>交通</td><td><b>扫码、羊城通</b></td><td>八達通</td></tr>
+    <tr><td>夹英文</td><td>较少</td><td>很多(OK、sorry、check in…)</td></tr></tbody></table>
+    <p class="small muted">听到对方的说法,跟着用就对了。</p>
     <p><b>少用句尾"嗎"。</b>普通话习惯用"…吗?"提问,粤语更常用 <b>咩</b>、<b>係咪</b>(是不是)、<b>A唔A</b>(得唔得閒)和句尾 <b>呀</b>。</p>`)}
-  ${sec('10. 常见问题', `
+  ${sec('11. 常见问题', `
     <p><b>为什么有些词的读音和书上不一样?</b><br>粤语有"变调":某些词口语里声调会变,例如「朋友」词典读 pang4 jau5,口语常说 pang4 jau2。本站标的是常见读音,遇到本地人读得不同,以对方为准。</p>
     <p><b>粤语到底有几个声调?</b><br>传统说法是 9 个(包含 3 个入声),粤拼把入声并入后是 6 个。日常学 6 个就够了。</p>
     <p><b>必须先学繁体字吗?</b><br>不用。先听说,边学边认;本站每个字都标了粤拼。</p>
     <p><b>本站的发音是真人录音吗?</b><br>不是,用的是浏览器自带的粤语语音合成。它可能和真人有细微差别,建议配合真人对话、影视作品对照校正。</p>
-    <p><b>香港和广州的粤语有区别吗?</b><br>基本互通,有少量用词和口音差异(香港多英语借词)。本站以香港常用说法为主。</p>
+    <p><b>香港和广州的粤语有区别吗?</b><br>基本互通,有少量用词和口音差异(香港多英语借词)。本站以广州说法为主,并标出香港不同的说法。</p>
     <p><b>粤拼和其他拼音方案有什么关系?</b><br>粤拼是香港语言学学会 1993 年制定的方案,目前使用最广。</p>`)}
   </div>
   <div class="row" style="margin-top:18px"><a class="btn primary" href="#/sounds">开始发音入门 →</a><a class="btn" href="#/lesson/L1">直接学第 1 课</a></div>`;
@@ -508,6 +538,7 @@ function viewGuide() {
 
 /* ================= 页面:常用句库(可搜索) ================= */
 let pbq = '';
+const PART_GROUP = { id: 'PART', icon: '💬', title: '语气词例句' };
 function allPhrases() {
   const seen = new Set(), out = [];
   LESSONS.forEach(L => {
@@ -515,6 +546,7 @@ function allPhrases() {
     L.phrases.forEach(add);
     if (L.dialog) L.dialog.lines.forEach(l => add(l.it));
   });
+  PARTICLES.forEach(q => q.ex.forEach(it => { if (seen.has(it.c)) return; seen.add(it.c); out.push({ it, L: PART_GROUP }); }));
   return out;
 }
 function pbListHTML() {
@@ -522,7 +554,7 @@ function pbListHTML() {
   const rows = allPhrases().filter(({ it }) => !q || it.m.toLowerCase().includes(q) || it.c.includes(q) || it.j.toLowerCase().includes(q));
   if (!rows.length) return '<div class="card muted">没有找到。试试换个关键词,比如「多少钱」「厕所」「谢谢」「nei5」。</div>';
   let html = `<p class="muted small">共 ${rows.length} 句</p>`;
-  LESSONS.forEach(L => {
+  LESSONS.concat([PART_GROUP]).forEach(L => {
     const rs = rows.filter(r => r.L === L);
     if (rs.length) html += `<h3 class="stage">${L.icon} ${L.title}</h3><div class="stack">${rs.map(r => phraseCard(r.it)).join('')}</div>`;
   });
@@ -534,6 +566,89 @@ function viewPhrasebook() {
   <input id="pbq" class="search" type="search" placeholder="例如:多少钱 / 洗手间 / 唔該 / nei5" value="${esc(pbq)}" autocomplete="off">
   <div id="pbl">${pbListHTML()}</div>`;
 }
+
+/* ================= 页面:句型模板(造句机) ================= */
+function fillPattern(i, k, say) {
+  const p = PATTERNS[i], sl = p.slots[k];
+  const c = p.pre[0] + sl[0] + p.suf[0], j = [p.pre[1], sl[1], p.suf[1]].filter(Boolean).join(' ');
+  $('#out' + i).innerHTML = `<div class="pcard">${spk(c)}<div class="body">${ruby(c, j, 'md')}<div class="mn muted">${esc(p.mT.replace('{}', sl[2]))}</div></div></div>`;
+  document.querySelectorAll(`#pat${i} .chip`).forEach((b, n) => b.classList.toggle('on', n === k));
+  if (say) speak(c);
+}
+function viewPatterns() {
+  app.innerHTML = `<h1>句型模板(造句机)</h1>
+  <p class="muted">学会这 ${PATTERNS.length} 个万能框架,换一个词就能说出新句子。<b>点下面的词,马上生成整句并朗读。</b>先把框架背熟,比背单句有用得多。</p>
+  <div class="stack">${PATTERNS.map((p, i) => `<div class="card" id="pat${i}"><h2>${i + 1}. ${esc(p.title)}</h2>
+    <p class="muted small" style="margin:0 0 8px">${esc(p.note)}</p>
+    <div class="chips">${p.slots.map((sl, k) => `<button class="chip" data-act="fill" data-p="${i}" data-s="${k}"><span class="cn md" lang="zh-HK">${esc(sl[0])}</span><span class="small muted">${esc(sl[2])}</span></button>`).join('')}</div>
+    <div id="out${i}" style="margin-top:10px"></div></div>`).join('')}</div>`;
+  PATTERNS.forEach((p, i) => fillPattern(i, 0, false));
+}
+
+/* ================= 页面:语气词 ================= */
+function viewParticles() {
+  const quick = [['让问句更柔和', '呀', 'aa3'], ['建议、催促、答应', '啦', 'laa1'], ['情况变了、已经发生', '喇 / 咯', 'laa3 / lok3'], ['强调"我告诉你"', '㗎', 'gaa3'], ['惊讶、反问', '咩', 'me1'], ['"只是……而已"', '啫 / 咋', 'ze1 / zaa3'], ['听说、突然想起来', '喎', 'wo3'], ['"当然啦"', '囉', 'lo1'], ['推测"大概"', '啩', 'gwaa3'], ['劝人吃东西、做事', '吖', 'aa1']];
+  app.innerHTML = `<h1>语气词</h1>
+  <p class="muted">语气词放在句末,决定一句话听起来"像不像本地人"。长辈说话里特别多,听懂它们,你就能听出她是在关心你、催你,还是在开玩笑。</p>
+  <div class="card"><h2>想表达什么,用哪个?</h2><table class="cmp"><thead><tr><th>想表达</th><th>用</th><th>粤拼</th></tr></thead><tbody>${quick.map(([a, b, c]) => `<tr><td>${a}</td><td class="cn md" lang="zh-HK">${b}</td><td class="small">${c}</td></tr>`).join('')}</tbody></table></div>
+  <div class="stack" style="margin-top:14px">${PARTICLES.map(q => `<div class="card"><div class="row"><span style="font-size:2rem;font-family:var(--cn);font-weight:700" lang="zh-HK">${q.c}</span><b class="t${toneOf(q.j)}">${q.j}</b><span class="muted small" style="margin-left:auto">${esc(q.like)}</span></div>
+    <p style="margin:6px 0 10px">${esc(q.use)}</p><div class="stack">${q.ex.map(phraseCard).join('')}</div></div>`).join('')}</div>`;
+}
+
+/* ================= 页面:请女朋友帮我校对 ================= */
+const vkey = it => it.c + '|' + it.j;
+function verifyGroups() {
+  const seen = new Set(), groups = [];
+  const add = (g, it) => { const k = vkey(it); if (seen.has(k)) return; seen.add(k); g.items.push(it); };
+  LESSONS.forEach(L => {
+    const g = { id: L.id, title: `${L.icon} ${L.title}`, items: [] };
+    L.words.forEach(it => add(g, it)); L.phrases.forEach(it => add(g, it));
+    if (L.dialog) L.dialog.lines.forEach(l => add(g, l.it));
+    groups.push(g);
+  });
+  const gp = { id: 'PART', title: '💬 语气词例句', items: [] };
+  PARTICLES.forEach(q => q.ex.forEach(it => add(gp, it)));
+  groups.push(gp);
+  return groups;
+}
+function rvStat(items) { let ok = 0, bad = 0; items.forEach(it => { const r = S.rv[vkey(it)]; if (r) { if (r.s === 'ok') ok++; else bad++; } }); return { ok, bad, total: items.length }; }
+function rvReport() {
+  let ok = 0, bad = 0; const lines = [];
+  verifyGroups().forEach(g => g.items.forEach(it => {
+    const r = S.rv[vkey(it)]; if (!r) return;
+    if (r.s === 'ok') ok++; else { bad++; lines.push(`✘ ${it.c} | ${it.j} | ${it.m}${r.note ? ' | 正确说法:' + r.note : ''}`); }
+  }));
+  return `粵語通 校对结果:已校对 ${ok + bad} 条,有问题 ${bad} 条\n` + lines.join('\n');
+}
+let verifyArg = '';
+function viewVerify(arg) {
+  verifyArg = arg || '';
+  const groups = verifyGroups();
+  if (!arg) {
+    const tot = groups.reduce((a, g) => a + g.items.length, 0);
+    const st = groups.reduce((a, g) => { const x = rvStat(g.items); return { ok: a.ok + x.ok, bad: a.bad + x.bad }; }, { ok: 0, bad: 0 });
+    app.innerHTML = `<a class="muted small" href="#/settings">← 设置</a><h1>请女朋友帮我校对</h1>
+    <div class="card stack"><p style="margin:0">这个网站的粤语是 AI 写的,没有母语者审核过。你女朋友是地道广州人,是最好的审核人 😊</p>
+      <ol class="plan"><li>让她打开下面某一课,逐条听发音、看汉字和粤拼;</li><li>说得对就点 <b>✔</b>;不对、或者不像广州话,点 <b>✘</b>,并写下正确的说法;</li><li>校对完,点页面底部「复制校对结果」,发给我,我来修正。</li></ol></div>
+    <p class="muted small" style="margin:12px 0">总进度:已校对 ${st.ok + st.bad} / ${tot} 条,其中有问题 ${st.bad} 条。</p>
+    <div class="stack">${groups.map(g => { const x = rvStat(g.items); return `<a class="step" href="#/verify/${g.id}"><span class="tt grow">${g.title}</span><span class="st" style="display:block">${x.ok + x.bad}/${x.total}${x.bad ? ' · ✘' + x.bad : ''}</span></a>`; }).join('')}</div>
+    <div class="card" style="margin-top:16px"><h3>校对结果(复制发给我)</h3>
+      <textarea id="rvout" class="search" rows="8" readonly>${esc(rvReport())}</textarea>
+      <div class="row" style="margin-top:8px"><button class="btn primary" data-act="copyRv">复制校对结果</button></div></div>`;
+    return;
+  }
+  const g = groups.find(x => x.id === arg);
+  if (!g) return viewVerify('');
+  app.innerHTML = `<a class="muted small" href="#/verify">← 返回校对列表</a><h1>${g.title}</h1>
+  <p class="muted small">点喇叭听发音。✔ = 正确且像广州话;✘ = 有问题(可填写正确说法)。</p>
+  <div class="stack">${g.items.map(it => {
+    const k = vkey(it), r = S.rv[k];
+    return `<div class="pcard vrow ${r ? r.s : ''}"><button class="spk" data-say="${esc(it.c)}" aria-label="播放">🔊</button>
+      <div class="body">${ruby(it.c, it.j, 'md')}<div class="mn muted small">${esc(it.m)}</div>${r && r.s === 'bad' && r.note ? `<div class="small" style="color:var(--bad)">正确:${esc(r.note)}</div>` : ''}</div>
+      <div class="vbtns"><button class="btn sm ${r && r.s === 'ok' ? 'primary' : ''}" data-act="vok" data-k="${esc(k)}" aria-label="正确">✔</button><button class="btn sm ${r && r.s === 'bad' ? 'primary' : ''}" data-act="vbad" data-k="${esc(k)}" aria-label="有问题">✘</button></div></div>`;
+  }).join('')}</div>`;
+}
+const rerenderVerify = () => { const y = window.scrollY; viewVerify(verifyArg); window.scrollTo(0, y); };
 
 /* ================= 页面:设置 ================= */
 function viewSettings() {
@@ -549,6 +664,7 @@ function viewSettings() {
       <div class="row"><button class="btn sm" data-act="testVoice">🔊 试听「你好,我係新學員」</button></div></div>
   </div>
   ${cur ? '' : `<div class="warn" style="margin-top:14px"><b>没有声音怎么办?</b><ol class="plan"><li>换用 <b>Microsoft Edge</b> 打开本页(自带高质量粤语语音:HiuGaai / HiuMaan / WanLung)。</li><li>或用 <b>Chrome</b>,通常自带「粤语(香港)」语音。</li><li>Windows 系统:设置 → 时间和语言 → 语言和区域 → 添加语言「中文(香港特别行政区)」,并勾选安装「文本转语音」。装好后重启浏览器。</li><li>手机:Android 的 Chrome 在系统「文字转语音」里安装粤语语音包;iPhone 的 Safari 在 设置 → 辅助功能 → 朗读内容 → 声音 → 粤语 中下载。</li></ol></div>`}
+  <div class="card" style="margin-top:14px"><h3>✅ 请女朋友帮我校对</h3><p class="muted small">让地道广州人逐条检查粤语是否准确、像不像广州话,把结果复制发给我修正。</p><a class="btn sm primary" href="#/verify">打开校对页 →</a></div>
   <div class="card" style="margin-top:14px"><h3>学习数据</h3><p class="muted small">进度保存在这台设备的浏览器里(不会上传)。清除浏览器数据会丢失进度。</p>
     <button class="btn sm" data-act="reset">清空全部进度</button></div>`;
 }
@@ -562,7 +678,7 @@ function route() {
   if (page !== 'review') Rv = null;
   if (page !== 'sounds') TT = null;
   document.body.classList.toggle('nojp', !S.set.jp);
-  document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.r === (page === 'lesson' || page === 'practice' ? 'home' : page)));
+  document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.r === (page === 'lesson' || page === 'practice' ? 'home' : page === 'verify' ? 'settings' : page)));
   if (page === 'home') viewHome();
   else if (page === 'sounds') viewSounds(arg);
   else if (page === 'lesson') viewLesson(arg);
@@ -570,6 +686,9 @@ function route() {
   else if (page === 'review') viewReview();
   else if (page === 'grammar') viewGrammar();
   else if (page === 'guide') viewGuide();
+  else if (page === 'patterns') viewPatterns();
+  else if (page === 'particles') viewParticles();
+  else if (page === 'verify') viewVerify(arg);
   else if (page === 'phrasebook') viewPhrasebook();
   else if (page === 'settings') viewSettings();
   else viewHome();
@@ -656,6 +775,21 @@ document.addEventListener('keydown', e => {
   else if (Rv) {
     if (!Rv.shown && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); ACT.reveal(); }
     else if (Rv.shown && /^[1-3]$/.test(e.key)) ACT.grade({ dataset: { v: String(+e.key - 1) } });
+  }
+});
+
+Object.assign(ACT, {
+  fill(t) { fillPattern(+t.dataset.p, +t.dataset.s, true); },
+  vok(t) { S.rv[t.dataset.k] = { s: 'ok' }; save(); rerenderVerify(); },
+  vbad(t) {
+    const k = t.dataset.k, old = S.rv[k] && S.rv[k].note || '';
+    const note = prompt('正确的说法 / 读音是什么?(可以留空,只标记有问题)', old);
+    if (note === null) return;
+    S.rv[k] = { s: 'bad', note: note.trim() }; save(); rerenderVerify();
+  },
+  copyRv() {
+    const txt = rvReport(), manual = () => { const ta = $('#rvout'); if (ta) ta.select(); toast('请按 Ctrl+C 复制文本框里的内容'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(() => toast('已复制,可以直接粘贴发给我'), manual); else manual();
   }
 });
 

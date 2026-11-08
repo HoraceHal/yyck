@@ -208,3 +208,17 @@ details.g li { margin: .3em 0; }
 #unote { max-width: 860px; margin: 12px auto 0; width: calc(100% - 32px); font-size: .95rem; display: block; }
 #unote[hidden] { display: none; }
 .newtag { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 8px; background: var(--brand); color: var(--brand-ink); font-size: .68rem; font-weight: 800; line-height: 18px; vertical-align: middle; }
+
+/* ---- 广州版新增:速成路线 / 句型 / 校对 ---- */
+#nav a { flex: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; flex-direction: column; align-items: center; gap: 0; padding: 4px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); line-height: 1.3; }
+a.chip { flex-direction: row; gap: 6px; padding: 8px 14px; font-size: .95rem; }
+.chip:hover { border-color: var(--brand); background: var(--brand-soft); }
+.chip.on { border-color: var(--brand); background: var(--brand-soft); }
+.chip .cn { line-height: 1.5; font-size: 1.2em; }
+.vrow .body { flex: 1; min-width: 0; }
+.vrow.ok { border-color: var(--ok); }
+.vrow.bad { border-color: var(--bad); background: var(--bad-soft); }
+.vbtns { display: flex; gap: 6px; flex: none; }
+textarea.search { resize: vertical; font-family: inherit; line-height: 1.6; }

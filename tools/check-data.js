@@ -2,7 +2,7 @@
 const fs = require('fs'), vm = require('vm'), path = require('path');
 const dir = path.join(__dirname, '..', 'public');
 const ctx = vm.createContext({});
-for (const f of ['data.js', 'lessons-extra.js']) vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
+for (const f of ['data.js', 'lessons-extra.js', 'lessons-gz.js']) vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
 const get = n => vm.runInContext(n, ctx);
 const LESSONS = get('LESSONS'), GRAMMAR = get('GRAMMAR'), COMPARE = get('COMPARE'), TONE_SETS = get('TONE_SETS'), INITIALS = get('INITIALS'), FINALS = get('FINALS');
 
@@ -29,6 +29,17 @@ GRAMMAR.forEach(g => g.ex.forEach(it => chk(it, 'G')));
 COMPARE.forEach(([m, w]) => chk(w, 'CMP'));
 TONE_SETS.forEach(s => s.items.forEach(([c, j], i) => { if (+j.slice(-1) !== i + 1) { bad++; console.log('TONE', c, j); } }));
 [...INITIALS, ...FINALS].forEach(([f, c, j]) => chk({ c, j }, 'IF'));
+
+// 句型模板:每个"前缀+填空+后缀"组合都校验;语气词例句也校验
+const PATTERNS = get('PATTERNS'), PARTICLES = get('PARTICLES');
+let combos = 0;
+PATTERNS.forEach(p => p.slots.forEach(([c, j, m]) => {
+  const it = { c: p.pre[0] + c + p.suf[0], j: [p.pre[1], j, p.suf[1]].filter(Boolean).join(' ') };
+  chk(it, 'PATTERN ' + p.title); combos++;
+  if (!p.mT.includes('{}')) { bad++; console.log('PATTERN mT missing {}', p.title); }
+}));
+PARTICLES.forEach(q => { chk({ c: q.c, j: q.j }, 'PARTICLE'); q.ex.forEach(it => chk(it, 'PARTICLE ex ' + q.c)); });
+console.log(`句型模板 ${PATTERNS.length} 个(${combos} 种组合),语气词 ${PARTICLES.length} 个`);
 
 // 同一个字出现多种读音(提示,供人工确认,不算错误)
 const readings = {};
