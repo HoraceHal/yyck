@@ -5,7 +5,7 @@ const app = $('#app');
 
 /* ================= 状态 ================= */
 const KEY = 'jyutung.v1';
-const defaults = () => ({ done: {}, srs: {}, xp: 0, streak: 0, lastDay: '', toneBest: 0, soundsDone: false, rv: {}, set: { jp: true, rate: 0.8, voice: '' } });
+const defaults = () => ({ done: {}, srs: {}, xp: 0, streak: 0, lastDay: '', toneBest: 0, soundsDone: false, rv: {}, set: { jp: true, rate: 0.8, voice: '', boost: 1.6 } });
 function load() {
   try {
     const o = JSON.parse(localStorage.getItem(KEY)) || {};
@@ -75,42 +75,107 @@ const lessonById = id => LESSONS.find(l => l.id === id);
 let voices = [];
 function loadVoices() { try { voices = window.speechSynthesis ? speechSynthesis.getVoices() : []; } catch (e) { voices = []; } updateVoiceNote(); }
 const isYue = v => /^(zh[-_]HK|yue)/i.test(v.lang) || /cantonese|粵|粤/i.test(v.name);
+const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+// 评分:粤语优先;"增强/自然/神经网络"等高质量声音加分(音质和响度通常更好)
+const voiceScore = v => { let sc = /^zh[-_]HK/i.test(v.lang) ? 10 : 9; if (/enhanced|premium|增强|增強|优化|優化|natural|neural/i.test(v.name)) sc += 5; if (/online/i.test(v.name)) sc += 1; return sc; };
+let voiceCache = null;
 function pickVoice() {
-  if (S.set.voice) { const v = voices.find(v => v.name === S.set.voice); if (v) return v; }
-  return voices.find(isYue) || null;
+  if (!voices.length && window.speechSynthesis) { try { voices = speechSynthesis.getVoices(); } catch (e) { /* ignore */ } } // iOS:语音列表可能晚到,点击时再取一次
+  if (S.set.voice) { const v = voices.find(x => x.name === S.set.voice); if (v) return v; }
+  if (voiceCache && voices.includes(voiceCache)) return voiceCache;
+  return (voiceCache = voices.filter(isYue).sort((a, b) => voiceScore(b) - voiceScore(a))[0] || null);
 }
+
 /* ===== 发音引擎:优先播放真人录音,没有录音才用语音合成 ===== */
 const hashText = t => { let h = 5381; for (const ch of t) h = ((h << 5) + h + ch.codePointAt(0)) >>> 0; return h.toString(36); };
 let AUDIO = {};      // 仓库里的真人录音:hash -> 文件名(public/audio/manifest.json)
 let LOCALREF = {};   // 本机录的标准音:hash -> objectURL
-let curAudio = null, seqId = 0, rateOverride = null;
+let curAudio = null, seqId = 0, rateOverride = null, lastCancel = 0;
 fetch('audio/manifest.json', { cache: 'no-cache' }).then(r => (r.ok ? r.json() : {})).then(j => { AUDIO = j || {}; }).catch(() => {});
 const recUrl = text => { const h = hashText(text.trim()); return LOCALREF[h] || (AUDIO[h] ? 'audio/' + AUDIO[h] : null); };
-function stopAll() { seqId++; try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) { /* ignore */ } if (curAudio) { curAudio.pause(); curAudio = null; } }
+
+// iOS:让网页音频按"媒体播放"处理(不被静音拨片压住);录音结束后需要重新设置
+function setPlaybackSession() { try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* 不支持就忽略 */ } }
+setPlaybackSession();
+
+// 音量增强:仅对"音频文件"(真人录音)有效;语音合成的音量由系统控制,网页无法放大
+let actx = null, gainNode = null;
+function audioCtx() {
+  if (!actx) {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
+    actx = new AC(); const comp = actx.createDynamicsCompressor();
+    gainNode = actx.createGain(); gainNode.connect(comp); comp.connect(actx.destination);
+  }
+  if (actx.state === 'suspended') actx.resume().catch(() => {});
+  gainNode.gain.value = S.set.boost || 1;
+  return actx;
+}
+function playFile(url) {
+  return new Promise(res => {
+    const a = new Audio(url); a.preload = 'auto'; a.playsInline = true; curAudio = a;
+    a.onended = a.onerror = () => res();
+    if ((S.set.boost || 1) > 1.05) {
+      const ctx = audioCtx();
+      if (ctx && ctx.state === 'running') { try { ctx.createMediaElementSource(a).connect(gainNode); } catch (e) { /* 失败就直接播放 */ } }
+    }
+    a.play().catch(() => res());
+  });
+}
+
+// Safari:cancel() 之后立刻 speak() 可能被吞掉 → 只在确实有语音在播时才 cancel,并等 ~100ms
+function stopAll() {
+  seqId++;
+  if (curAudio) { curAudio.pause(); curAudio = null; }
+  try { const sy = window.speechSynthesis; if (sy && (sy.speaking || sy.pending)) { sy.cancel(); lastCancel = performance.now(); } } catch (e) { /* ignore */ }
+}
+function ttsSpeak(u) {
+  const wait = Math.max(0, 100 - (performance.now() - lastCancel));
+  if (wait > 0) setTimeout(() => speechSynthesis.speak(u), wait); else speechSynthesis.speak(u);
+}
 function playOne(text) {
   return new Promise(res => {
     const url = recUrl(text);
-    if (url) { const a = new Audio(url); curAudio = a; a.onended = a.onerror = () => res(); a.play().catch(() => res()); return; }
+    if (url) { playFile(url).then(res); return; }
     const v = pickVoice();
     if (!v) { res(); return; }
     const u = new SpeechSynthesisUtterance(text.replace(/[\s]+/g, ' '));
-    u.voice = v; u.lang = v.lang; u.rate = rateOverride || S.set.rate;
-    u.onend = u.onerror = () => res();
-    speechSynthesis.speak(u);
+    u.voice = v; u.lang = v.lang; u.rate = rateOverride || S.set.rate; u.volume = 1; u.pitch = 1;
+    let tm, fin = false;
+    const done = () => { if (!fin) { fin = true; clearTimeout(tm); res(); } };
+    u.onend = u.onerror = done;
+    tm = setTimeout(done, 3000 + text.length * 450); // 个别 Safari 不触发 onend,防止卡住
+    ttsSpeak(u);
   });
 }
 async function playSeq(texts) { const my = ++seqId; for (const t of texts) { if (my !== seqId) return; await playOne(t); } }
-function speak(text) {
+
+// 点击后立刻给按钮"正在播放"的反馈,感觉更跟手
+function markPlaying(btn, p) {
+  document.querySelectorAll('.spk.playing').forEach(b => b.classList.remove('playing'));
+  btn.classList.add('playing');
+  const off = () => btn.classList.remove('playing');
+  p.then(off, off); setTimeout(off, 15000);
+}
+function speak(text, btn) {
   if (!recUrl(text)) {
-    if (!window.speechSynthesis) { toast('当前浏览器不支持语音朗读,请换用 Edge 或 Chrome'); return false; }
+    if (!window.speechSynthesis) { toast('当前浏览器不支持语音朗读,请换用 Edge / Chrome / Safari'); return false; }
     if (!pickVoice()) { toast('没有找到粤语语音,请看页面上方的提示或「设置」'); return false; }
   }
-  stopAll(); playSeq([text]); return true;
+  stopAll();
+  const p = playSeq([text]);
+  if (btn) markPlaying(btn, p);
+  return true;
 }
 function speakQueue(texts) {
   if (!texts.some(recUrl) && !pickVoice()) { speak('x'); return; }
   stopAll(); playSeq(texts); toast('正在连续播放…点任意喇叭可打断');
 }
+const warmedRecs = new Set();
+function warmRecs(texts) { // 提前把真人录音下载好,点击时无需等待网络
+  texts.forEach(t => { const u = recUrl(t); if (u && !u.startsWith('blob:') && !warmedRecs.has(u)) { warmedRecs.add(u); fetch(u, { cache: 'force-cache' }).catch(() => {}); } });
+}
+// 第一次触摸时:确认音频会话 / 取语音列表 / 唤醒音频上下文(都在用户手势内完成)
+['touchend', 'click'].forEach(ev => document.addEventListener(ev, () => { setPlaybackSession(); if (window.speechSynthesis && !voices.length) loadVoices(); if (Object.keys(AUDIO).length || Object.keys(LOCALREF).length) { try { audioCtx(); } catch (e) { /* ignore */ } } }, { once: true, capture: true }));
 function updateVoiceNote() {
   const n = $('#vnote');
   const ok = !!pickVoice();
@@ -303,6 +368,7 @@ function viewLesson(id) {
   <div class="card row" style="justify-content:space-between">
     <div><b>${L.dialog ? '④' : '③'} 做练习</b><br><span class="muted small">12 道题:听音辨义、认字、排句子。正确率 ≥ 70% 通过,并加入复习。</span></div>
     <a class="btn primary" href="#/practice/${L.id}">开始练习 →</a></div>`;
+  warmRecs(L.words.concat(L.phrases).map(i => i.c).concat(L.dialog ? L.dialog.lines.map(l => l.it.c) : []));
 }
 
 const legendHTML = () => `<div class="legend"><b>声调颜色:</b>${TONES.map(t => `<span class="t${t.n}"><b>${t.n}</b> ${t.name}</span>`).join('')}<span class="muted">· 点任意粤拼,看它怎么拆</span></div>`;
@@ -822,6 +888,7 @@ async function recStop(save = true) {
   await new Promise(res => { r.onstop = res; try { r.stop(); } catch (e) { res(); } });
   if (RC.stream) RC.stream.getTracks().forEach(t => t.stop());
   RC.stream = null;
+  setPlaybackSession();
   if (save && RC.chunks.length) {
     const blob = new Blob(RC.chunks, { type: RC.mt || 'audio/webm' });
     await ADB.put(RC.mode, RC.h, { blob, type: RC.mt, text: RC.text });
@@ -850,6 +917,20 @@ function viewSettings() {
       <div class="row"><button class="btn sm" data-act="testVoice">🔊 试听「你好,我係新學員」</button></div></div>
   </div>
   ${cur ? '' : `<div class="warn" style="margin-top:14px"><b>没有声音怎么办?</b><ol class="plan"><li>换用 <b>Microsoft Edge</b> 打开本页(自带高质量粤语语音:HiuGaai / HiuMaan / WanLung)。</li><li>或用 <b>Chrome</b>,通常自带「粤语(香港)」语音。</li><li>Windows 系统:设置 → 时间和语言 → 语言和区域 → 添加语言「中文(香港特别行政区)」,并勾选安装「文本转语音」。装好后重启浏览器。</li><li>手机:Android 的 Chrome 在系统「文字转语音」里安装粤语语音包;iPhone 的 Safari 在 设置 → 辅助功能 → 朗读内容 → 声音 → 粤语 中下载。</li></ol></div>`}
+  <div class="card" style="margin-top:14px"><h3>🔊 发音与音量</h3>
+    <div class="small" style="margin-bottom:8px">当前使用的声音:${cur ? `<b>${esc(cur.name)}</b>(${esc(cur.lang)},${cur.localService ? '本机' : '在线'})` : '<b>没有找到粤语声音</b>'}${IS_IOS ? ' · 已识别为 iPhone / iPad' : ''}</div>
+    <div class="field"><label for="boost"><b>音量增强</b> <span class="muted small" id="boostV">${(S.set.boost || 1).toFixed(1)}×</span></label>
+      <input id="boost" type="range" min="1" max="3" step="0.1" value="${S.set.boost || 1}" data-set="boost">
+      <span class="muted small">只对「真人录音」生效。手机自带的语音合成,音量由系统控制,网页无法放大。</span></div>
+    <div class="row"><button class="btn sm" data-act="testVol">🔊 试听</button><button class="btn sm" data-act="testSlow">🐢 慢速试听</button></div>
+    <details style="margin-top:12px"><summary><b>iPhone 声音小 / 没声音怎么办?</b></summary>
+      <ol class="plan small">
+        <li><b>检查机身左侧的静音拨片</b>:露出橙色就是静音,拨回去。iPhone 上网页的语音可能被它压住。</li>
+        <li><b>播放时按音量 + 键</b>:没有声音在播时,侧键调的是铃声音量,不是媒体音量。</li>
+        <li><b>换一个更好的声音</b>:iPhone「设置 → 辅助功能 → 朗读内容 → 声音 → 粤语」,下载 <b>Sinji 增强版</b>(或其他增强声音)。回到网页刷新后,上面会显示新的声音;不显示就在「朗读声音」里手动选。</li>
+        <li><b>先暂停音乐/视频</b>:iOS 在网页语音播放时会自动压低其他声音。</li>
+        <li><b>最彻底的办法是用真人录音</b>(见「录音」页),它们是普通音频文件,不依赖手机自带语音,还能用上面的「音量增强」。</li>
+      </ol></details></div>
   <div class="card" style="margin-top:14px"><h3>🎙 真人录音 / 跟读对比</h3><p class="muted small">让女朋友把句子读出来,网站就会播放她的真实声音;你也可以录自己的跟读,和标准音对比。</p><a class="btn sm primary" href="#/record">打开录音页 →</a></div>
   <div class="card" style="margin-top:14px"><h3>✅ 请女朋友帮我校对</h3><p class="muted small">让地道广州人逐条检查粤语是否准确、像不像广州话,把结果复制发给我修正。</p><a class="btn sm primary" href="#/verify">打开校对页 →</a></div>
   <div class="card" style="margin-top:14px"><h3>学习数据</h3><p class="muted small">进度保存在这台设备的浏览器里(不会上传)。清除浏览器数据会丢失进度。</p>
@@ -935,12 +1016,14 @@ const ACT = {
     } else trainNext(true);
   },
   testVoice() { speak('你好,我係新學員'); },
+  testVol() { speak('你好,我係新學員。多謝晒!'); },
+  testSlow() { rateOverride = 0.55; stopAll(); playSeq(['你好,我係新學員。多謝晒!']).then(() => { rateOverride = null; }); },
   reset() { if (confirm('确定清空全部学习进度吗?此操作不能撤销。')) { S = defaults(); save(); updateBadge(); location.hash = '#/'; route(); } }
 };
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-say],[data-act]');
   if (!t) return;
-  if (t.dataset.say !== undefined) { e.preventDefault(); speak(t.dataset.say); return; }
+  if (t.dataset.say !== undefined) { e.preventDefault(); speak(t.dataset.say, t); return; }
   const f = ACT[t.dataset.act]; if (f) f(t, e);
 });
 document.addEventListener('click', e => {
@@ -959,7 +1042,8 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('input', e => {
   if (e.target.id === 'pbq') { pbq = e.target.value; $('#pbl').innerHTML = pbListHTML(); return; }
-  const t = e.target.closest('[data-set="rate"]'); if (!t) return;
+  const t = e.target.closest('[data-set="rate"],[data-set="boost"]'); if (!t) return;
+  if (t.dataset.set === 'boost') { S.set.boost = +t.value; $('#boostV').textContent = S.set.boost.toFixed(1) + '×'; save(); return; }
   S.set.rate = +t.value; $('#rateV').textContent = S.set.rate.toFixed(2) + '×'; save();
 });
 document.addEventListener('keydown', e => {

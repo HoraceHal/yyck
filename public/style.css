@@ -230,3 +230,11 @@ textarea.search { resize: vertical; font-family: inherit; line-height: 1.6; }
 .rrow .rbtns { display: flex; gap: 6px; flex: none; flex-wrap: wrap; justify-content: flex-end; }
 .rrow.ok { border-color: var(--ok); }
 rt { cursor: help; }
+
+/* ---- 触摸响应 / 播放中反馈 ---- */
+button, a, .spk, .opt, .tok, .chip, .tab, .btn, summary { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.spk, .btn, .opt, .tok, .chip, .tab { -webkit-user-select: none; user-select: none; }
+.spk:active, .btn:active, .opt:active, .tok:active, .chip:active { transform: scale(.96); }
+.spk.playing { background: var(--brand-soft); border-color: var(--brand); animation: spkpulse 1s ease-in-out infinite; }
+@keyframes spkpulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 45%, transparent); } 50% { box-shadow: 0 0 0 8px transparent; } }
+@media (prefers-reduced-motion: reduce) { .spk.playing { animation: none; } }
