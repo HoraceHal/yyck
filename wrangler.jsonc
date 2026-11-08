@@ -1,6 +1,6 @@
 {
   // Cloudflare Workers 静态资源部署:public/ 目录下的文件会原样发布
-  "name": "yuetung",
+  "name": "yyck",
   "compatibility_date": "2025-11-01",
   "assets": {
     "directory": "./public"

@@ -5,7 +5,7 @@ const dir = path.join(__dirname, '..', 'public');
 const ctx = vm.createContext({});
 for (const f of ['data.js', 'lessons-extra.js']) vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
 const lessons = vm.runInContext('LESSONS.length', ctx);
-const sha = (process.env.GITHUB_SHA || 'local').slice(0, 7);
+const sha = (process.env.WORKERS_CI_COMMIT_SHA || process.env.GITHUB_SHA || 'local').slice(0, 7);
 const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12); // 例如 202611081530
 const out = process.argv[2] || path.join(dir, 'version.json');
 fs.writeFileSync(out, JSON.stringify({ version: `${stamp}-${sha}`, lessons }) + '\n');
