@@ -2,7 +2,7 @@
 const fs = require('fs'), vm = require('vm'), path = require('path');
 const dir = path.join(__dirname, '..', 'public');
 const ctx = vm.createContext({});
-for (const f of ['data.js', 'lessons-extra.js', 'lessons-gz.js']) vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
+for (const f of ['data.js', 'lessons-extra.js', 'lessons-gz.js', 'lessons-more.js', 'notes.js']) vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
 const get = n => vm.runInContext(n, ctx);
 const LESSONS = get('LESSONS'), GRAMMAR = get('GRAMMAR'), COMPARE = get('COMPARE'), TONE_SETS = get('TONE_SETS'), INITIALS = get('INITIALS'), FINALS = get('FINALS');
 

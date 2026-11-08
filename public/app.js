@@ -79,22 +79,37 @@ function pickVoice() {
   if (S.set.voice) { const v = voices.find(v => v.name === S.set.voice); if (v) return v; }
   return voices.find(isYue) || null;
 }
+/* ===== 发音引擎:优先播放真人录音,没有录音才用语音合成 ===== */
+const hashText = t => { let h = 5381; for (const ch of t) h = ((h << 5) + h + ch.codePointAt(0)) >>> 0; return h.toString(36); };
+let AUDIO = {};      // 仓库里的真人录音:hash -> 文件名(public/audio/manifest.json)
+let LOCALREF = {};   // 本机录的标准音:hash -> objectURL
+let curAudio = null, seqId = 0, rateOverride = null;
+fetch('audio/manifest.json', { cache: 'no-cache' }).then(r => (r.ok ? r.json() : {})).then(j => { AUDIO = j || {}; }).catch(() => {});
+const recUrl = text => { const h = hashText(text.trim()); return LOCALREF[h] || (AUDIO[h] ? 'audio/' + AUDIO[h] : null); };
+function stopAll() { seqId++; try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) { /* ignore */ } if (curAudio) { curAudio.pause(); curAudio = null; } }
+function playOne(text) {
+  return new Promise(res => {
+    const url = recUrl(text);
+    if (url) { const a = new Audio(url); curAudio = a; a.onended = a.onerror = () => res(); a.play().catch(() => res()); return; }
+    const v = pickVoice();
+    if (!v) { res(); return; }
+    const u = new SpeechSynthesisUtterance(text.replace(/[\s]+/g, ' '));
+    u.voice = v; u.lang = v.lang; u.rate = rateOverride || S.set.rate;
+    u.onend = u.onerror = () => res();
+    speechSynthesis.speak(u);
+  });
+}
+async function playSeq(texts) { const my = ++seqId; for (const t of texts) { if (my !== seqId) return; await playOne(t); } }
 function speak(text) {
-  if (!window.speechSynthesis) { toast('当前浏览器不支持语音朗读,请换用 Edge 或 Chrome'); return false; }
-  const v = pickVoice();
-  if (!v) { toast('没有找到粤语语音,请看页面上方的提示或「设置」'); return false; }
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text.replace(/[\s]+/g, ' '));
-  u.voice = v; u.lang = v.lang; u.rate = S.set.rate;
-  speechSynthesis.speak(u);
-  return true;
+  if (!recUrl(text)) {
+    if (!window.speechSynthesis) { toast('当前浏览器不支持语音朗读,请换用 Edge 或 Chrome'); return false; }
+    if (!pickVoice()) { toast('没有找到粤语语音,请看页面上方的提示或「设置」'); return false; }
+  }
+  stopAll(); playSeq([text]); return true;
 }
 function speakQueue(texts) {
-  const v = pickVoice();
-  if (!v) { speak('x'); return; }
-  speechSynthesis.cancel();
-  texts.forEach(c => { const u = new SpeechSynthesisUtterance(c); u.voice = v; u.lang = v.lang; u.rate = S.set.rate; speechSynthesis.speak(u); });
-  toast('正在连续播放…点任意喇叭可打断');
+  if (!texts.some(recUrl) && !pickVoice()) { speak('x'); return; }
+  stopAll(); playSeq(texts); toast('正在连续播放…点任意喇叭可打断');
 }
 function updateVoiceNote() {
   const n = $('#vnote');
@@ -119,7 +134,7 @@ function grade(id, g) {
 function updateBadge() { const n = dueIds().length, b = $('#dueBadge'); b.hidden = !n; b.textContent = n; }
 
 /* ================= 页面:首页 ================= */
-const STAGES = { L1: 1, L8: 1, L2: 1, L3: 1, L4: 2, L9: 2, L18: 2, L20: 2, L5: 2, L6: 2, L19: 2, L10: 2, L16: 3, L7: 3, L21: 3, L17: 3, L22: 3, L11: 3, L12: 3, L13: 3, L14: 3, L15: 3 };
+const STAGES = { L1: 1, L8: 1, L2: 1, L3: 1, L23: 1, L4: 2, L9: 2, L18: 2, L20: 2, L28: 2, L5: 2, L6: 2, L19: 2, L10: 2, L27: 2, L16: 3, L7: 3, L25: 3, L21: 3, L26: 3, L17: 3, L24: 3, L22: 3, L11: 3, L12: 3, L13: 3, L14: 3, L15: 3 };
 const STAGE_NAMES = { 1: '第一阶段 · 能开口:打招呼、听不懂怎么办、数字时间', 2: '第二阶段 · 能生活:吃、买、行、住(广州版)', 3: '第三阶段 · 能融入:见家人、聊家常、和女朋友交流' };
 function viewHome() {
   const due = dueIds().length, doneN = LESSONS.filter(l => S.done[l.id]).length;
@@ -140,6 +155,7 @@ function viewHome() {
     </div>
   </section>
 
+  ${first ? `<div class="card" style="margin-top:14px"><h2>新手 3 步,马上开始</h2><ol class="plan"><li><b>听声调</b>:去「发音」页,点喇叭听 6 个声调(5 分钟)。</li><li><b>学第 1 课</b>:跟着喇叭大声读,再做练习。</li><li><b>明天回来复习</b>:「复习」页会提醒你,记忆靠重复。</li></ol><p class="muted small" style="margin:0">看不懂词上面的小字?那是<b>粤拼</b>,点任意一个粤拼,会告诉你怎么拆。</p></div>` : ''}
   <div class="card" style="margin-top:14px;border:2px solid var(--brand)">
     <h2 style="margin-bottom:4px">💞 见家长速成路线(推荐先走这条)</h2>
     <p class="muted small" style="margin:0 0 10px">目标:先能和女朋友的妈妈(地道广州人)顺利聊起来。约 2 周,按顺序点:</p>
@@ -176,6 +192,8 @@ function viewHome() {
     <a class="card" href="#/patterns"><b>🧩 句型模板(造句机)</b><br><span class="muted small">14 个万能框架,换个词就是新句子</span></a>
     <a class="card" href="#/particles"><b>💬 语气词</b><br><span class="muted small">呀 啦 喇 㗎 咩 喎 吖……听出长辈的语气</span></a>
     <a class="card" href="#/verify"><b>✅ 请女朋友帮我校对</b><br><span class="muted small">让地道广州人逐条检查,发给我修正</span></a>
+    <a class="card" href="#/listen"><b>👂 听力实战</b><br><span class="muted small">不看字,只听一句,选意思</span></a>
+    <a class="card" href="#/record"><b>🎙 真人录音 / 跟读对比</b><br><span class="muted small">让女朋友录标准音;自己跟读再对比</span></a>
   </div>`;
 }
 
@@ -183,7 +201,7 @@ function viewHome() {
 let soundTab = 'tones';
 function viewSounds(tab) {
   soundTab = tab || soundTab;
-  const tabs = [['tones', '① 六个声调'], ['initials', '② 声母'], ['finals', '③ 韵母'], ['train', '④ 听辨游戏']];
+  const tabs = [['tones', '① 六个声调'], ['initials', '② 声母'], ['finals', '③ 韵母'], ['train', '④ 听辨游戏'], ['lazy', '⑤ 广州口音(懶音)']];
   const head = `<h1>发音入门</h1><div class="tabs" role="tablist">${tabs.map(([k, n]) => `<a class="tab ${soundTab === k ? 'on' : ''}" role="tab" href="#/sounds/${k}">${n}</a>`).join('')}</div>`;
   let body = '';
   if (soundTab === 'tones') {
@@ -213,10 +231,22 @@ function viewSounds(tab) {
       <p class="muted small" style="margin:0">一个音节 = 声母 + 韵母 + 声调。例:<b>你 nei5</b> = n + ei + 5;<b>我 ngo5</b> = ng + o + 5。</p></div>
     <div class="grid" style="margin-top:14px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">${arr.map(([f, c, j, n]) => `
       <div class="cell"><span class="lab">${f}</span><div class="body">${ruby(c, j)}<div class="muted small">${esc(n)}</div></div>${spk(c)}</div>`).join('')}</div>`;
+  } else if (soundTab === 'lazy') {
+    body = lazyHTML();
   } else {
     body = viewTrainHTML();
   }
   app.innerHTML = head + body;
+}
+
+function lazyHTML() {
+  const rows = [['你', 'nei5', 'lei5', 'n 读成 l'], ['男', 'naam4', 'laam4', 'n 读成 l'], ['我', 'ngo5', 'o5', 'ng 脱落'], ['牛', 'ngau4', 'au4', 'ng 脱落'], ['國', 'gwok3', 'gok3', 'gw 读成 g'], ['光', 'gwong1', 'gong1', 'gw 读成 g'], ['廣', 'gwong2', 'gong2', 'gw 读成 g']];
+  return `<div class="card stack">
+    <p style="margin:0"><b>懶音</b>是广州话里常见的"偷懒读法"。广州的年轻人和长辈都经常这样说,听起来和标准读音略有不同。</p>
+    <p style="margin:0">你只需要做到两件事:<b>① 听得懂</b>(知道和标准读音是同一个字);<b>② 自己先说标准读音</b>。</p></div>
+  <table class="cmp" style="margin-top:14px"><thead><tr><th>字</th><th>标准读音</th><th>常听到的懶音</th><th>规律</th><th></th></tr></thead><tbody>
+  ${rows.map(([c, std, lz, why]) => `<tr><td>${ruby(c, std)}</td><td><b class="t${toneOf(std)}">${std}</b></td><td><b class="t${toneOf(lz)}">${lz}</b></td><td class="small">${why}</td><td>${spk(c)}</td></tr>`).join('')}</tbody></table>
+  <div class="card" style="margin-top:14px"><h3>怎么练?</h3><p class="small muted" style="margin:0">喇叭播放的是标准读音。多听女朋友和阿姨说话,留意她们把「你」说成 lei5、把「我」说成 o5。听到了就知道是同一个字,不用纠结。</p></div>`;
 }
 
 /* ---- 声调听辨游戏 ---- */
@@ -259,6 +289,8 @@ function viewLesson(id) {
   <p class="muted">${L.desc}</p>
   ${L.goal ? `<div class="goal">🎯 <b>学完这课,你能:</b>${L.goal}</div>` : ''}
   <div class="tip" style="margin-bottom:12px"><b>💡 先看这个:</b><br>${L.tip}</div>
+  ${L.pit ? `<div class="pit">⚠ <b>易错点:</b>${L.pit}</div>` : ''}
+  ${legendHTML()}
   ${L.culture ? `<div class="culture">🌏 <b>本地小贴士:</b>${L.culture}</div>` : ''}
   <p class="muted small" style="margin:14px 0 8px">学习方法:<b>先听 → 跟着大声读 → 遮住粤拼自测 → 做练习</b>。每个词至少跟读 3 遍。</p>
   <div class="row" style="margin:6px 0"><h2 class="grow" style="margin:0">① 学词汇 <span class="muted small">(${L.words.length} 个)</span></h2>
@@ -272,6 +304,8 @@ function viewLesson(id) {
     <div><b>${L.dialog ? '④' : '③'} 做练习</b><br><span class="muted small">12 道题:听音辨义、认字、排句子。正确率 ≥ 70% 通过,并加入复习。</span></div>
     <a class="btn primary" href="#/practice/${L.id}">开始练习 →</a></div>`;
 }
+
+const legendHTML = () => `<div class="legend"><b>声调颜色:</b>${TONES.map(t => `<span class="t${t.n}"><b>${t.n}</b> ${t.name}</span>`).join('')}<span class="muted">· 点任意粤拼,看它怎么拆</span></div>`;
 
 /* 情景对话:可遮住译文、可选择"我演 A / 我演 B"(对方台词模糊,点一下显示) */
 function dialogHTML(L) {
@@ -320,7 +354,7 @@ function startPractice(id) {
   Q = { L, qs: buildQuiz(L), i: 0, score: 0, wrong: [] };
   renderQ(true);
 }
-function answerBlock(it) { return `<div class="row" style="margin-top:6px">${spk(it.c)}<div>${ruby(it.c, it.j, 'md')}<div class="mn muted small">${esc(it.m)}</div></div></div>`; }
+function answerBlock(it) { return `<div class="row" style="margin-top:6px">${spk(it.c)}<div>${ruby(it.c, it.j, 'md')}<div class="mn muted small">${esc(it.m)}</div>${it.n ? `<div class="nt small">💡 ${esc(it.n)}</div>` : ''}</div></div>`; }
 function renderQ(auto) {
   if (!Q) return;
   if (Q.i >= Q.qs.length) return renderResult();
@@ -549,20 +583,28 @@ function allPhrases() {
   PARTICLES.forEach(q => q.ex.forEach(it => { if (seen.has(it.c)) return; seen.add(it.c); out.push({ it, L: PART_GROUP }); }));
   return out;
 }
+let pbmode = 'p';
+function allWordRows() {
+  const seen = new Set(), out = [];
+  LESSONS.forEach(L => L.words.forEach(w => { const k = w.c + '|' + w.j; if (seen.has(k)) return; seen.add(k); out.push({ it: w, L }); }));
+  return out;
+}
 function pbListHTML() {
-  const q = pbq.trim().toLowerCase();
-  const rows = allPhrases().filter(({ it }) => !q || it.m.toLowerCase().includes(q) || it.c.includes(q) || it.j.toLowerCase().includes(q));
+  const q = pbq.trim().toLowerCase(), isW = pbmode === 'w';
+  const hit = it => !q || it.m.toLowerCase().includes(q) || it.c.includes(q) || it.j.toLowerCase().includes(q) || (it.n || '').toLowerCase().includes(q);
+  const rows = (isW ? allWordRows() : allPhrases()).filter(({ it }) => hit(it));
   if (!rows.length) return '<div class="card muted">没有找到。试试换个关键词,比如「多少钱」「厕所」「谢谢」「nei5」。</div>';
-  let html = `<p class="muted small">共 ${rows.length} 句</p>`;
+  let html = `<p class="muted small">共 ${rows.length} ${isW ? '个词' : '句'}</p>`;
   LESSONS.concat([PART_GROUP]).forEach(L => {
     const rs = rows.filter(r => r.L === L);
-    if (rs.length) html += `<h3 class="stage">${L.icon} ${L.title}</h3><div class="stack">${rs.map(r => phraseCard(r.it)).join('')}</div>`;
+    if (rs.length) html += `<h3 class="stage">${L.icon} ${L.title}</h3><div class="${isW ? 'grid' : 'stack'}">${rs.map(r => (isW ? wordCard(r.it) : phraseCard(r.it))).join('')}</div>`;
   });
   return html;
 }
 function viewPhrasebook() {
-  app.innerHTML = `<h1>常用句库</h1>
+  app.innerHTML = `<h1>常用句库 / 词库</h1>
   <p class="muted">想说什么,直接搜。支持搜<b>普通话</b>、<b>粤语汉字</b>或<b>粤拼</b>。点喇叭听发音。</p>
+  <div class="tabs"><button class="tab ${pbmode === 'p' ? 'on' : ''}" data-act="pbmode" data-v="p">句子</button><button class="tab ${pbmode === 'w' ? 'on' : ''}" data-act="pbmode" data-v="w">词汇</button></div>
   <input id="pbq" class="search" type="search" placeholder="例如:多少钱 / 洗手间 / 唔該 / nei5" value="${esc(pbq)}" autocomplete="off">
   <div id="pbl">${pbListHTML()}</div>`;
 }
@@ -650,6 +692,150 @@ function viewVerify(arg) {
 }
 const rerenderVerify = () => { const y = window.scrollY; viewVerify(verifyArg); window.scrollTo(0, y); };
 
+/* ================= 页面:听力实战 ================= */
+let LS = null;
+function listenPool(scope) {
+  const seen = new Set(), out = [];
+  LESSONS.filter(L => scope === 'all' || (scope === 'done' ? S.done[L.id] : String(STAGES[L.id]) === scope)).forEach(L =>
+    L.phrases.concat(L.dialog ? L.dialog.lines.map(l => l.it) : []).forEach(it => { if (!seen.has(it.c)) { seen.add(it.c); out.push(it); } }));
+  return out;
+}
+function listenStart(scope) {
+  const pool = listenPool(scope);
+  if (pool.length < 4) { toast('这个范围里的句子太少,先学几课,或选「全部」'); return; }
+  const qs = shuffle(pool).slice(0, 10).map(it => {
+    const others = shuffle(pool.filter(x => x.m !== it.m)).filter((x, i, a) => a.findIndex(y => y.m === x.m) === i).slice(0, 3);
+    return { it, opts: shuffle([it].concat(others)) };
+  });
+  LS = { scope, qs, i: 0, score: 0, picked: -1, rate: 0 };
+  viewListen();
+  setTimeout(playListen, 250);
+}
+function playListen() { const q = LS && LS.qs[LS.i]; if (!q) return; rateOverride = LS.rate || null; stopAll(); playSeq([q.it.c]).then(() => { rateOverride = null; }); }
+function viewListen() {
+  if (!LS) {
+    app.innerHTML = `<h1>听力实战</h1>
+    <p class="muted">听一句粤语,选出意思。<b>不看字、不看粤拼</b>,专门练耳朵。每轮 10 题。</p>
+    <div class="card stack"><h3>选择范围</h3>
+      <div class="row">${[['1', '第一阶段(入门)'], ['2', '第二阶段(生活)'], ['3', '第三阶段(家人)'], ['done', '我学过的课'], ['all', '全部']].map(([k, n]) => `<button class="btn" data-act="listenStart" data-v="${k}">${n}</button>`).join('')}</div>
+      <p class="muted small" style="margin:0">觉得太快?答题时点「慢速再听」。键盘 1–4 选答案,Enter 下一题。</p></div>`;
+    return;
+  }
+  if (LS.i >= LS.qs.length) {
+    addXP(LS.score * 3);
+    app.innerHTML = `<div class="card" style="text-align:center"><div class="big-score">${LS.score}/${LS.qs.length}</div>
+      <h2>${LS.score >= 8 ? '🎉 耳朵很灵!' : LS.score >= 5 ? '不错,继续练' : '多听几遍,会越来越好'}</h2>
+      <div class="row" style="justify-content:center"><button class="btn primary" data-act="listenStart" data-v="${LS.scope}">再来一轮</button><button class="btn" data-act="listenReset">换范围</button></div></div>`;
+    return;
+  }
+  const q = LS.qs[LS.i], done = LS.picked >= 0, right = done && q.opts[LS.picked] === q.it;
+  app.innerHTML = `<div class="row"><span class="muted small">第 ${LS.i + 1} / ${LS.qs.length} 题 · 得分 ${LS.score}</span></div>
+  <div class="bar" style="margin:8px 0"><i style="width:${LS.i / LS.qs.length * 100}%"></i></div>
+  <div class="card"><div class="qprompt"><div class="qlabel">听一听,这句话是什么意思?</div>${spk(q.it.c, 'big')}
+    <div class="row" style="justify-content:center;margin-top:8px"><button class="btn sm" data-act="listenRate" data-v="0">正常速度再听</button><button class="btn sm" data-act="listenRate" data-v="0.55">🐢 慢速再听</button></div></div>
+    <div class="opts">${q.opts.map((o, i) => `<button class="opt ${done ? (o === q.it ? 'ok' : (LS.picked === i ? 'bad' : '')) : ''}" data-act="listenPick" data-i="${i}" ${done ? 'disabled' : ''}><kbd>${i + 1}</kbd><span>${esc(o.m)}</span></button>`).join('')}</div>
+    ${done ? `<div class="fb ${right ? 'ok' : 'bad'}"><b>${right ? '✅ 听对了!' : '❌ 再听听:'}</b><div class="ans">${answerBlock(q.it)}</div></div>
+      <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" data-act="listenNext">${LS.i + 1 >= LS.qs.length ? '查看结果' : '下一题'}</button></div>` : ''}</div>`;
+}
+
+/* ================= 真人录音 / 跟读对比 ================= */
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = d => { let c = 0xffffffff; for (let i = 0; i < d.length; i++) c = CRC_T[(c ^ d[i]) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+function makeZip(files) { // 无压缩(store)zip,够用且无需外部库
+  const enc = new TextEncoder(), parts = [], central = []; let offset = 0;
+  files.forEach(f => {
+    const name = enc.encode(f.name), crc = crc32(f.data), size = f.data.length;
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(12, 0x21, true);
+    lh.setUint32(14, crc, true); lh.setUint32(18, size, true); lh.setUint32(22, size, true); lh.setUint16(26, name.length, true);
+    parts.push(new Uint8Array(lh.buffer), name, f.data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(14, 0x21, true);
+    ch.setUint32(16, crc, true); ch.setUint32(20, size, true); ch.setUint32(24, size, true); ch.setUint16(28, name.length, true); ch.setUint32(42, offset, true);
+    central.push(new Uint8Array(ch.buffer), name);
+    offset += 30 + name.length + size;
+  });
+  const csize = central.reduce((a, q) => a + q.length, 0), end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true); end.setUint32(12, csize, true); end.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: 'application/zip' });
+}
+
+const ADB = {
+  db: null,
+  open() {
+    return this.db ? Promise.resolve(this.db) : new Promise((res, rej) => {
+      const r = indexedDB.open('jyutung-audio', 1);
+      r.onupgradeneeded = () => { r.result.createObjectStore('ref'); r.result.createObjectStore('mine'); };
+      r.onsuccess = () => { this.db = r.result; res(this.db); };
+      r.onerror = () => rej(r.error);
+    });
+  },
+  async run(store, mode, fn) {
+    const d = await this.open();
+    return new Promise((res, rej) => { const t = d.transaction(store, mode); const req = fn(t.objectStore(store)); t.oncomplete = () => res(req && req.result); t.onerror = () => rej(t.error); });
+  },
+  get(store, k) { return this.run(store, 'readonly', o => o.get(k)); },
+  put(store, k, v) { return this.run(store, 'readwrite', o => o.put(v, k)); },
+  del(store, k) { return this.run(store, 'readwrite', o => o.delete(k)); },
+  keys(store) { return this.run(store, 'readonly', o => o.getAllKeys()); },
+  async entries(store) { const ks = await this.keys(store); const out = []; for (const k of ks) out.push({ key: k, value: await this.get(store, k) }); return out; }
+};
+async function loadLocalRef() { try { (await ADB.entries('ref')).forEach(({ key, value }) => { LOCALREF[key] = URL.createObjectURL(value.blob); }); } catch (e) { /* 隐私模式等 */ } }
+if (window.indexedDB) loadLocalRef();
+
+const RC = { rec: null, stream: null, chunks: [], h: '', mode: 'ref', text: '', mt: '' };
+function recItems(L) {
+  const seen = new Set(), out = [];
+  const add = it => { if (!seen.has(it.c)) { seen.add(it.c); out.push(it); } };
+  if (L.id === 'PART') PARTICLES.forEach(q => q.ex.forEach(add));
+  else { L.phrases.forEach(add); if (L.dialog) L.dialog.lines.forEach(l => add(l.it)); L.words.forEach(add); }
+  return out;
+}
+async function viewRecord(arg) {
+  const [mode, lid] = (arg || '').split('/');
+  if (!mode) {
+    const have = new Set((await ADB.keys('ref').catch(() => [])) || []);
+    app.innerHTML = `<h1>🎙 真人录音 / 跟读对比</h1>
+    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">
+      <div class="card stack"><h2>A. 录标准音(给女朋友)</h2><p class="muted small" style="margin:0">让她用手机逐句读出来。录音保存在这台设备上,点喇叭就会播放她的声音。全部录完点「导出」,把 zip 发给我,我放进网站,以后所有人点喇叭听到的都是她的声音。</p>
+        <p class="small" style="margin:0">已录 <b>${have.size}</b> 条。建议先录「见女朋友的妈妈」「和长辈聊家常」「语气词」。</p></div>
+      <div class="card stack"><h2>B. 跟读对比(自己练)</h2><p class="muted small" style="margin:0">听标准音 → 录下自己 → 回放对比。录音只保存在你的设备上,不会上传。</p></div></div>
+    <h3 class="stage">A. 录标准音:选一课</h3><div class="stack">${LESSONS.concat([{ id: 'PART', icon: '💬', title: '语气词例句' }]).map(L => { const items = recItems(L), n = items.filter(it => have.has(hashText(it.c.trim()))).length; return `<a class="step" href="#/record/ref/${L.id}"><span class="ic">${L.icon}</span><span class="tt grow">${L.title}</span><span class="st" style="display:block">${n}/${items.length}</span></a>`; }).join('')}</div>
+    <div class="card" style="margin-top:14px"><h3>导出女朋友的录音</h3><p class="muted small">会下载一个 zip(含全部录音和对照表)。录音格式取决于她的浏览器,安卓/电脑 Chrome 是 webm,iPhone 是 m4a,都能直接用。</p><button class="btn primary" data-act="recExport">导出全部录音(zip)</button></div>
+    <h3 class="stage">B. 跟读对比:选一课</h3><div class="stack">${LESSONS.map(L => `<a class="step" href="#/record/mine/${L.id}"><span class="ic">${L.icon}</span><span class="tt grow">${L.title}</span></a>`).join('')}</div>`;
+    return;
+  }
+  const L = lid === 'PART' ? { id: 'PART', icon: '💬', title: '语气词例句' } : lessonById(lid);
+  if (!L) return viewRecord('');
+  const have = new Set((await ADB.keys(mode).catch(() => [])) || []);
+  const items = recItems(L);
+  app.innerHTML = `<a class="muted small" href="#/record">← 返回</a><h1>${L.icon} ${L.title}</h1>
+  <p class="muted small">${mode === 'ref' ? '请逐句读出来:点 ⏺ 开始,读完点 ⏹。读得自然、清楚、像平时说话。可以点 ▶ 回听,不满意就重录。' : '点喇叭听标准音,点 ⏺ 录下自己,再点 🔁 对比(先播标准音,再播你的)。'}</p>
+  <div class="stack">${items.map(it => { const h = hashText(it.c.trim()), has = have.has(h), active = RC.rec && RC.h === h && RC.mode === mode; return `<div class="pcard rrow ${has ? 'ok' : ''}"><button class="spk" data-say="${esc(it.c)}" aria-label="听标准音">🔊</button>
+    <div class="body">${ruby(it.c, it.j, 'md')}<div class="mn muted small">${esc(it.m)}</div></div>
+    <div class="rbtns"><button class="btn sm ${active ? 'primary' : ''}" data-act="recToggle" data-h="${h}" data-m="${mode}" data-t="${esc(it.c)}">${active ? '⏹' : '⏺'}</button>
+      ${has ? `<button class="btn sm" data-act="recPlay" data-h="${h}" data-m="${mode}" aria-label="回放">▶</button>${mode === 'mine' ? `<button class="btn sm" data-act="recCompare" data-h="${h}" data-t="${esc(it.c)}" aria-label="对比">🔁</button>` : ''}<button class="btn sm ghost" data-act="recDel" data-h="${h}" data-m="${mode}" aria-label="删除">🗑</button>` : ''}</div></div>`; }).join('')}</div>`;
+}
+async function recStop(save = true) {
+  const r = RC.rec; if (!r) return;
+  RC.rec = null;
+  await new Promise(res => { r.onstop = res; try { r.stop(); } catch (e) { res(); } });
+  if (RC.stream) RC.stream.getTracks().forEach(t => t.stop());
+  RC.stream = null;
+  if (save && RC.chunks.length) {
+    const blob = new Blob(RC.chunks, { type: RC.mt || 'audio/webm' });
+    await ADB.put(RC.mode, RC.h, { blob, type: RC.mt, text: RC.text });
+    if (RC.mode === 'ref') LOCALREF[RC.h] = URL.createObjectURL(blob);
+  }
+  RC.chunks = [];
+}
+async function playBlobEntry(mode, h) {
+  const v = await ADB.get(mode, h); if (!v) return Promise.resolve();
+  stopAll();
+  return new Promise(res => { const a = new Audio(URL.createObjectURL(v.blob)); curAudio = a; a.onended = a.onerror = () => res(); a.play().catch(() => res()); });
+}
+const refreshRecord = async () => { const y = window.scrollY; await viewRecord(location.hash.replace(/^#\/record\/?/, '')); window.scrollTo(0, y); };
+
 /* ================= 页面:设置 ================= */
 function viewSettings() {
   const zh = voices.filter(v => /^(zh|yue)/i.test(v.lang));
@@ -664,6 +850,7 @@ function viewSettings() {
       <div class="row"><button class="btn sm" data-act="testVoice">🔊 试听「你好,我係新學員」</button></div></div>
   </div>
   ${cur ? '' : `<div class="warn" style="margin-top:14px"><b>没有声音怎么办?</b><ol class="plan"><li>换用 <b>Microsoft Edge</b> 打开本页(自带高质量粤语语音:HiuGaai / HiuMaan / WanLung)。</li><li>或用 <b>Chrome</b>,通常自带「粤语(香港)」语音。</li><li>Windows 系统:设置 → 时间和语言 → 语言和区域 → 添加语言「中文(香港特别行政区)」,并勾选安装「文本转语音」。装好后重启浏览器。</li><li>手机:Android 的 Chrome 在系统「文字转语音」里安装粤语语音包;iPhone 的 Safari 在 设置 → 辅助功能 → 朗读内容 → 声音 → 粤语 中下载。</li></ol></div>`}
+  <div class="card" style="margin-top:14px"><h3>🎙 真人录音 / 跟读对比</h3><p class="muted small">让女朋友把句子读出来,网站就会播放她的真实声音;你也可以录自己的跟读,和标准音对比。</p><a class="btn sm primary" href="#/record">打开录音页 →</a></div>
   <div class="card" style="margin-top:14px"><h3>✅ 请女朋友帮我校对</h3><p class="muted small">让地道广州人逐条检查粤语是否准确、像不像广州话,把结果复制发给我修正。</p><a class="btn sm primary" href="#/verify">打开校对页 →</a></div>
   <div class="card" style="margin-top:14px"><h3>学习数据</h3><p class="muted small">进度保存在这台设备的浏览器里(不会上传)。清除浏览器数据会丢失进度。</p>
     <button class="btn sm" data-act="reset">清空全部进度</button></div>`;
@@ -677,8 +864,10 @@ function route() {
   if (page !== 'practice') Q = null;
   if (page !== 'review') Rv = null;
   if (page !== 'sounds') TT = null;
+  if (page !== 'listen') LS = null;
+  if (page !== 'record' && RC.rec) recStop(false);
   document.body.classList.toggle('nojp', !S.set.jp);
-  document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.r === (page === 'lesson' || page === 'practice' ? 'home' : page === 'verify' ? 'settings' : page)));
+  document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.r === (page === 'lesson' || page === 'practice' ? 'home' : page === 'verify' || page === 'record' ? 'settings' : page)));
   if (page === 'home') viewHome();
   else if (page === 'sounds') viewSounds(arg);
   else if (page === 'lesson') viewLesson(arg);
@@ -689,6 +878,8 @@ function route() {
   else if (page === 'patterns') viewPatterns();
   else if (page === 'particles') viewParticles();
   else if (page === 'verify') viewVerify(arg);
+  else if (page === 'listen') viewListen();
+  else if (page === 'record') viewRecord(arg);
   else if (page === 'phrasebook') viewPhrasebook();
   else if (page === 'settings') viewSettings();
   else viewHome();
@@ -752,6 +943,13 @@ document.addEventListener('click', e => {
   if (t.dataset.say !== undefined) { e.preventDefault(); speak(t.dataset.say); return; }
   const f = ACT[t.dataset.act]; if (f) f(t, e);
 });
+document.addEventListener('click', e => {
+  const rt = e.target.closest && e.target.closest('rt'); if (!rt) return;
+  const sy = rt.textContent.trim(), m = sy.match(/^(ng|gw|kw|[bpmfdtnlgkhwzcsj])?([a-z]+)([1-6])$/);
+  if (!m) return;
+  const tn = TONES[+m[3] - 1];
+  toast(`${sy} = ${m[1] || '(无声母)'} + ${m[2]} + ${m[3]}(${tn.name}调)`);
+});
 document.addEventListener('change', e => {
   const t = e.target.closest('[data-set]'); if (!t) return;
   const k = t.dataset.set;
@@ -772,6 +970,10 @@ document.addEventListener('keydown', e => {
     else if (e.key === 'Enter') { const b = app.querySelector('[data-act="next"],[data-act="check"]:not([disabled])'); if (b) { e.preventDefault(); b.click(); } }
   } else if (TT && TT.cur && /^[1-6]$/.test(e.key) && !TT.picked && TT.n < TT.total) { ACT.trainPick({ dataset: { v: e.key } }); }
   else if (TT && TT.picked && e.key === 'Enter') { e.preventDefault(); ACT.trainNext(); }
+  else if (LS && LS.i < LS.qs.length) {
+    if (/^[1-4]$/.test(e.key) && LS.picked < 0) { const b = app.querySelectorAll('.opt')[+e.key - 1]; if (b) b.click(); }
+    else if (e.key === 'Enter' && LS.picked >= 0) { e.preventDefault(); ACT.listenNext(); }
+  }
   else if (Rv) {
     if (!Rv.shown && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); ACT.reveal(); }
     else if (Rv.shown && /^[1-3]$/.test(e.key)) ACT.grade({ dataset: { v: String(+e.key - 1) } });
@@ -790,6 +992,58 @@ Object.assign(ACT, {
   copyRv() {
     const txt = rvReport(), manual = () => { const ta = $('#rvout'); if (ta) ta.select(); toast('请按 Ctrl+C 复制文本框里的内容'); };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(() => toast('已复制,可以直接粘贴发给我'), manual); else manual();
+  }
+});
+
+Object.assign(ACT, {
+  pbmode(t) { pbmode = t.dataset.v; viewPhrasebook(); },
+  listenStart(t) { listenStart(t.dataset.v); },
+  listenReset() { LS = null; viewListen(); },
+  listenRate(t) { LS.rate = +t.dataset.v; playListen(); },
+  listenPick(t) {
+    if (LS.picked >= 0) return;
+    const q = LS.qs[LS.i], i = +t.dataset.i; LS.picked = i;
+    if (q.opts[i] === q.it) { LS.score++; addXP(5); }
+    viewListen(); setTimeout(() => speak(q.it.c), 100);
+  },
+  listenNext() { LS.i++; LS.picked = -1; viewListen(); if (LS.i < LS.qs.length) setTimeout(playListen, 250); },
+  async recToggle(t) {
+    const h = t.dataset.h, mode = t.dataset.m;
+    if (RC.rec) { const same = RC.h === h && RC.mode === mode; await recStop(true); await refreshRecord(); if (same) return; }
+    try {
+      if (!navigator.mediaDevices || !window.MediaRecorder) { toast('这个浏览器不支持录音,请用 Chrome / Edge / Safari 打开'); return; }
+      stopAll();
+      RC.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      RC.mt = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'].find(m => MediaRecorder.isTypeSupported(m)) || '';
+      RC.rec = new MediaRecorder(RC.stream, RC.mt ? { mimeType: RC.mt } : undefined);
+      RC.chunks = []; RC.h = h; RC.mode = mode; RC.text = t.dataset.t.trim();
+      RC.rec.ondataavailable = e => { if (e.data && e.data.size) RC.chunks.push(e.data); };
+      RC.rec.start();
+      await refreshRecord(); toast('正在录音…读完点 ⏹');
+    } catch (e) { RC.rec = null; toast('无法使用麦克风:请允许浏览器访问麦克风(需要 https 或 localhost)'); }
+  },
+  async recPlay(t) { await playBlobEntry(t.dataset.m, t.dataset.h); },
+  async recCompare(t) { stopAll(); await playSeq([t.dataset.t.trim()]); await playBlobEntry('mine', t.dataset.h); },
+  async recDel(t) {
+    const h = t.dataset.h, m = t.dataset.m;
+    await ADB.del(m, h); if (m === 'ref') delete LOCALREF[h];
+    await refreshRecord();
+  },
+  async recExport() {
+    const ents = await ADB.entries('ref');
+    if (!ents.length) { toast('还没有录音可导出'); return; }
+    const enc = new TextEncoder(), files = [], manifest = {}, list = [];
+    for (const { key, value } of ents) {
+      const ext = /mp4/.test(value.type) ? 'm4a' : /ogg/.test(value.type) ? 'ogg' : 'webm';
+      const name = `${key}.${ext}`;
+      files.push({ name, data: new Uint8Array(await value.blob.arrayBuffer()) });
+      manifest[key] = name; list.push(`${key}\t${name}\t${value.text || ''}`);
+    }
+    files.push({ name: 'manifest.json', data: enc.encode(JSON.stringify(manifest, null, 1)) });
+    files.push({ name: 'list.txt', data: enc.encode(list.join('\n')) });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(makeZip(files)); a.download = 'yuetung-audio.zip';
+    document.body.appendChild(a); a.click(); a.remove();
+    toast(`已导出 ${ents.length} 条录音`);
   }
 });
 
