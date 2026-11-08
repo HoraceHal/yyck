@@ -11,7 +11,7 @@ const SYL = /^(ng|gw|kw|[bpmfdtnlgkhwzcsj])?(aang|aak|aai|aau|aam|aan|aap|aat|aa
 let bad = 0, n = 0;
 const chk = (it, where) => {
   n++;
-  const hc = (it.c.match(han) || []).length, syl = it.j.trim().split(/\s+/);
+  const hc = (it.c.match(han) || []).length, syl = it.j.trim() ? it.j.trim().split(/\s+/) : []; // 纯英文词(如 WhatsApp)粤拼为空
   const okSyl = syl.every(s => SYL.test(s));
   if (hc !== syl.length || !okSyl) { bad++; console.log('MISMATCH', where, it.c, '|', it.j, `han=${hc} syl=${syl.length} validSyl=${okSyl}`); }
   if (it.w && it.w.map(x => x[0]).join('') !== it.c) { bad++; console.log('TOKENS', where, it.c); }
@@ -37,6 +37,13 @@ LESSONS.forEach(L => { L.words.concat(L.phrases).forEach(scan); if (L.dialog) L.
 console.log('\n同字多读音(请人工确认是否为正常变调/多音字):');
 Object.entries(readings).filter(([, s]) => s.size > 1).forEach(([c, s]) => console.log(' ', c, [...s].join(' / ')));
 
-const totW = LESSONS.reduce((a, L) => a + L.words.length, 0), totP = LESSONS.reduce((a, L) => a + L.phrases.length, 0);
+// 地道性提示(不算错误,供人工复核):这些用法常带普通话/内地色彩
+const lint = [['嗎', '句尾"嗎"偏普通话,优先用 咩 / 係咪 / A唔A / 呀'], ['打包', '香港:打包=吃剩的带走;外卖说 外賣/帶走'], ['請你', '日常更常说 唔該你…'], ['菜單', '香港常说 餐牌']];
+console.log('\n地道性提示(请人工确认是否有意保留):');
+let hits = 0;
+LESSONS.forEach(L => L.words.concat(L.phrases, L.dialog ? L.dialog.lines.map(l => l.it) : []).forEach(it => lint.forEach(([k, why]) => { if (it.c.includes(k)) { hits++; console.log(`  [${L.id}] ${it.c}  ← 含「${k}」:${why}`); } })));
+if (!hits) console.log('  (无)');
+
+const totW =LESSONS.reduce((a, L) => a + L.words.length, 0), totP = LESSONS.reduce((a, L) => a + L.phrases.length, 0);
 console.log(`\n课程 ${LESSONS.length} 课,词 ${totW},句 ${totP};共检查 ${n} 条;问题 ${bad}`);
 process.exit(bad ? 1 : 0);

@@ -2,14 +2,14 @@
  * S(普通话, "汉字/粤拼 汉字/粤拼 ...")  粤拼里多个音节用 _ 连接,如  咩名/me1_meng2
  * D(标题, 角色A, 角色B, [A|B, 句子], ...)  情景对话
  */
-const S = (m, spec) => P(m, ...spec.split(' ').map(t => { const [c, j] = t.split('/'); return [c, j.replace(/_/g, ' ')]; }));
+const S = (m, spec) => P(m, ...spec.split(' ').map(t => { const [c, j] = t.split('/'); return [c.replace(/_/g, ' '), j.replace(/_/g, ' ')]; }));
 const D = (title, roleA, roleB, ...ls) => ({ title, roles: { A: roleA, B: roleB }, lines: ls.map(([who, it]) => ({ who, it })) });
 const LX = id => LESSONS.find(l => l.id === id);
 
 /* ============ 给第 1–7 课补充:学习目标 / 文化小贴士 / 词 / 对话 ============ */
 Object.assign(LX('L1'), {
   goal: '向本地人问好、介绍自己、道谢和道歉。',
-  culture: '朋友之间常用「阿 + 名字」来称呼,如 阿美、阿明,很亲切。熟人见面也常直接说「早晨」或「食咗飯未?」。',
+  culture: '朋友之间常用「阿 + 名字」来称呼,如 阿美、阿明,很亲切。熟人见面也常直接说「早晨」或「食咗飯未?」。问候近况,本地人更常说「最近點呀?」,比「你好嗎?」更自然。告别时除了「再見」,也常说「拜拜」或 bye bye。',
   dialog: D('初次见面', '你', '新朋友',
     ['A', S('你好!', '你/nei5 好!/hou2')],
     ['B', S('你好!', '你/nei5 好!/hou2')],
@@ -18,7 +18,7 @@ Object.assign(LX('L1'), {
     ['A', S('很高兴认识你!', '好/hou2 高興/gou1_hing3 認識/jing6_sik1 你!/nei5')],
     ['B', S('我也很高兴认识你。', '我/ngo5 都/dou1 好/hou2 高興/gou1_hing3 認識/jing6_sik1 你。/nei5')])
 });
-LX('L1').words.push(W('都', 'dou1', '也／都'), W('唔使客氣', 'm4 sai2 haak3 hei3', '不客气'));
+LX('L1').words.push(W('都', 'dou1', '也／都'), W('唔使客氣', 'm4 sai2 haak3 hei3', '不客气'), W('最近', 'zeoi3 gan6', '最近'), W('拜拜', 'baai1 baai3', '拜拜', '香港人也常直接说英文 bye bye'));
 
 Object.assign(LX('L2'), {
   goal: '听懂并说出价钱、电话号码和年龄。',
@@ -37,7 +37,7 @@ Object.assign(LX('L3'), {
   goal: '说出今天/明天、几点,并约好见面时间。',
   culture: '约人最常用的三个词:得閒(有空)、幾點(几点)、喺邊度見(在哪里见)。回绝时说「唔好意思,我嗰日唔得閒」会很礼貌。',
   dialog: D('约朋友吃饭', '你', '朋友',
-    ['A', S('你今天有空吗?', '你/nei5 今日/gam1_jat6 得閒/dak1_haan4 嗎?/maa3')],
+    ['A', S('你今天有没有空?', '你/nei5 今日/gam1_jat6 得/dak1 唔/m4 得閒/dak1_haan4 呀?/aa3')],
     ['B', S('有空呀,什么事?', '得閒/dak1_haan4 呀,/aa3 咩事/me1_si6 呀?/aa3')],
     ['A', S('我们今晚一起吃饭,好不好?', '我哋/ngo5_dei6 今日/gam1_jat6 夜晚/je6_maan5 食飯,/sik6_faan6 好/hou2 唔/m4 好/hou2 呀?/aa3')],
     ['B', S('好呀!几点?', '好/hou2 呀!/aa3 幾點/gei2_dim2 呀?/aa3')],
@@ -104,7 +104,7 @@ LESSONS.push(
   id: 'L8', icon: '🙋', title: '听不懂怎么办', sub: 'When You Don\'t Understand',
   desc: '最实用的一课:听不懂时,礼貌地请对方说慢一点、再说一次。',
   goal: '听不懂时礼貌地请对方放慢、重复,并告诉对方你在学粤语。',
-  tip: '遇到听不懂,记住<b>三步</b>:<br>① <b>唔好意思</b>(不好意思)→ ② <b>請你講慢啲</b>(请你说慢一点)→ ③ <b>請你再講一次</b>(请你再说一次)。<br>再加一句 <b>我識講少少廣東話</b>(我会说一点点广东话),对方就会明白你是学习者,自然会放慢速度。',
+  tip: '遇到听不懂,记住<b>三步</b>:<br>① <b>唔好意思</b>(不好意思)→ ② <b>唔該你講慢啲</b>(麻烦你说慢一点)→ ③ <b>唔該你再講一次</b>(麻烦你再说一次)。<br>再加一句 <b>我識講少少廣東話</b>(我会说一点点广东话),对方就会明白你是学习者,自然会放慢速度。',
   culture: '在香港,很多人也会说英语或普通话,有时会直接切换语言来"帮你"。如果你想练习,可以笑着说「我想練習廣東話」,大部分人都会很乐意配合。',
   words: [
     W('唔好意思', 'm4 hou2 ji3 si1', '不好意思／打扰一下', '比 對唔住 更轻,用于打扰别人'),
@@ -128,8 +128,8 @@ LESSONS.push(
   ],
   phrases: [
     S('不好意思,我听不懂。', '唔好意思,/m4_hou2_ji3_si1 我/ngo5 聽唔明。/teng1_m4_ming4'),
-    S('请你说慢一点。', '請/ceng2 你/nei5 講/gong2 慢/maan6 啲。/di1'),
-    S('请你再说一次。', '請/ceng2 你/nei5 再/zoi3 講/gong2 一次。/jat1_ci3'),
+    S('麻烦你说慢一点。', '唔該/m4_goi1 你/nei5 講/gong2 慢/maan6 啲。/di1'),
+    S('麻烦你再说一次。', '唔該/m4_goi1 你/nei5 再/zoi3 講/gong2 一次。/jat1_ci3'),
     S('我会说一点点广东话。', '我/ngo5 識/sik1 講/gong2 少少/siu2_siu2 廣東話。/gwong2_dung1_waa2'),
     S('我正在学广东话。', '我/ngo5 學/hok6 緊/gan2 廣東話。/gwong2_dung1_waa2'),
     S('我想练习广东话。', '我/ngo5 想/soeng2 練習/lin6_zaap6 廣東話。/gwong2_dung1_waa2'),
@@ -141,25 +141,27 @@ LESSONS.push(
   ],
   dialog: D('请对方说慢一点', '你', '本地人',
     ['B', S('你会说广东话吗?', '你/nei5 識/sik1 唔/m4 識/sik1 講/gong2 廣東話/gwong2_dung1_waa2 呀?/aa3')],
-    ['A', S('我会说一点点,请你说慢一点。', '我/ngo5 識/sik1 講/gong2 少少,/siu2_siu2 請/ceng2 你/nei5 講/gong2 慢/maan6 啲。/di1')],
+    ['A', S('我会说一点点,麻烦你说慢一点。', '我/ngo5 識/sik1 講/gong2 少少,/siu2_siu2 唔該/m4_goi1 你/nei5 講/gong2 慢/maan6 啲。/di1')],
     ['B', S('好呀,没问题!', '好/hou2 呀,/aa3 冇問題!/mou5_man6_tai4')],
     ['A', S('谢谢!我想练习广东话。', '多謝!/do1_ze6 我/ngo5 想/soeng2 練習/lin6_zaap6 廣東話。/gwong2_dung1_waa2')],
     ['B', S('你说得很好!', '你/nei5 講/gong2 得/dak1 好好!/hou2_hou2')])
 },
 {
   id: 'L9', icon: '🍜', title: '点餐进阶与港式美食', sub: 'Ordering Like a Local',
-  desc: '少甜走冰、辣不辣、堂食还是打包,点餐时的各种要求都会说。',
-  goal: '点餐时说出口味要求(少甜、走冰、辣不辣),并回答"堂食还是打包"。',
-  tip: '<b>走 zau2</b> = 去掉:走冰 = 不加冰,走甜 = 不加糖。<b>少 siu2</b> = 少放:少甜、少冰。<br>饮料常见组合:<b>凍檸茶,少甜,走冰</b>。店员问 <b>食喺度定係打包呀?</b>,你答 <b>食喺度</b> 或 <b>打包</b>。',
+  desc: '少甜走冰、辣不辣、在这里吃还是带走,点餐时的各种要求都会说。',
+  goal: '点餐时说出口味要求(少甜、走冰、辣不辣),并回答"在这里吃还是带走"。',
+  tip: '<b>走 zau2</b> = 去掉:走冰 = 不加冰,走甜 = 不加糖。<b>少 siu2</b> = 少放:少甜、少冰。<br>饮料常见组合:<b>凍檸茶,少甜,走冰</b>。店员问 <b>喺度食定係帶走呀?</b>,你答 <b>喺度食</b> 或 <b>帶走</b>。<br>⚠ 香港说<b>外賣 / 帶走</b>;<b>打包</b>在香港多指"把吃剩的带走"(广州则连外卖也说打包)。菜单在香港叫<b>餐牌</b>。',
   culture: '茶餐厅常见:叉燒飯、雲吞麵、奶茶、檸茶。點心(dim sum)是茶楼里的小点,用「飲茶」来说"去喝早茶/吃点心"。',
   words: [
-    W('菜單', 'coi3 daan1', '菜单'),
+    W('餐牌', 'caan1 paai2', '菜单', '香港说"餐牌",也会听到"菜單"'),
     W('落單', 'lok6 daan1', '点单／下单'),
     W('少甜', 'siu2 tim4', '少糖'),
     W('走冰', 'zau2 bing1', '不加冰', '走 = 去掉'),
     W('少冰', 'siu2 bing1', '少冰'),
     W('辣', 'laat6', '辣'),
-    W('打包', 'daa2 baau1', '打包／外带'),
+    W('帶走', 'daai3 zau2', '带走'),
+    W('外賣', 'ngoi6 maai6', '外卖'),
+    W('打包', 'daa2 baau1', '打包(吃剩的带走)', '点外卖更常说 外賣／帶走'),
     W('喺度', 'hai2 dou6', '在这里'),
     W('定係', 'ding6 hai6', '还是'),
     W('畀', 'bei2', '给'),
@@ -177,13 +179,15 @@ LESSONS.push(
     W('飲嘢', 'jam2 je5', '喝的／饮料')
   ],
   phrases: [
-    S('麻烦给我一张菜单。', '唔該/m4_goi1 畀/bei2 張/zoeng1 菜單/coi3_daan1 我。/ngo5'),
+    S('麻烦给我一张餐牌。', '唔該/m4_goi1 畀/bei2 張/zoeng1 餐牌/caan1_paai2 我。/ngo5'),
     S('我想点单。', '我/ngo5 想/soeng2 落單。/lok6_daan1'),
     S('我要少甜、走冰。', '我/ngo5 要/jiu3 少甜、/siu2_tim4 走冰。/zau2_bing1'),
     S('这个辣不辣?', '呢個/ni1_go3 辣/laat6 唔/m4 辣/laat6 呀?/aa3'),
     S('我不要辣。', '我/ngo5 唔/m4 要/jiu3 辣。/laat6'),
-    S('在这里吃还是打包?', '食/sik6 喺度/hai2_dou6 定係/ding6_hai6 打包/daa2_baau1 呀?/aa3'),
-    S('打包,谢谢。', '打包,/daa2_baau1 唔該。/m4_goi1'),
+    S('在这里吃还是带走?', '喺度/hai2_dou6 食/sik6 定係/ding6_hai6 帶走/daai3_zau2 呀?/aa3'),
+    S('带走,谢谢。', '帶走,/daai3_zau2 唔該。/m4_goi1'),
+    S('我要外卖。', '我/ngo5 要/jiu3 外賣。/ngoi6_maai6'),
+    S('吃不完,可以打包吗?', '食/sik6 唔/m4 晒,/saai3 可/ho2 唔/m4 可以/ho2_ji5 打包/daa2_baau1 呀?/aa3'),
     S('可以给我一些纸巾吗?', '可/ho2 唔/m4 可以/ho2_ji5 畀/bei2 啲/di1 紙巾/zi2_gan1 我/ngo5 呀?/aa3'),
     S('我要一个叉烧饭。', '我/ngo5 要/jiu3 一/jat1 個/go3 叉燒飯。/caa1_siu1_faan6'),
     S('再来一碗汤。', '再/zoi3 嚟/lai4 一/jat1 碗/wun2 湯。/tong1'),
@@ -192,8 +196,8 @@ LESSONS.push(
   dialog: D('点餐', '你', '店员',
     ['B', S('想吃点什么?', '想/soeng2 食/sik6 啲/di1 咩/me1 呀?/aa3')],
     ['A', S('我要一个叉烧饭。', '我/ngo5 要/jiu3 一/jat1 個/go3 叉燒飯。/caa1_siu1_faan6')],
-    ['B', S('在这里吃还是打包?', '食/sik6 喺度/hai2_dou6 定係/ding6_hai6 打包/daa2_baau1 呀?/aa3')],
-    ['A', S('在这里吃。', '食/sik6 喺度。/hai2_dou6')],
+    ['B', S('在这里吃还是带走?', '喺度/hai2_dou6 食/sik6 定係/ding6_hai6 帶走/daai3_zau2 呀?/aa3')],
+    ['A', S('在这里吃。', '喺度/hai2_dou6 食。/sik6')],
     ['B', S('要喝点什么吗?', '要/jiu3 唔/m4 要/jiu3 飲嘢/jam2_je5 呀?/aa3')],
     ['A', S('一杯冰柠檬茶,少甜,谢谢。', '一/jat1 杯/bui1 凍/dung3 檸茶,/ning4_caa4 少甜,/siu2_tim4 唔該。/m4_goi1')])
 },
@@ -202,7 +206,7 @@ LESSONS.push(
   desc: '办入住、提要求、坐的士、说"麻烦快一点"。',
   goal: '办理酒店入住、打车去目的地,并提出简单要求。',
   tip: '提要求的万能格式:<b>唔該 + 動作 + 東西</b>,例如 唔該幫我攞行李(麻烦帮我拿行李)。<br>想问"可不可以……",用 <b>可唔可以……呀?</b>。',
-  culture: '香港的「八達通」是通用的交通卡,地铁、巴士、便利店都能刷。坐的士时,上车说目的地,下车前说「喺呢度停,唔該」。',
+  culture: '香港的「八達通」是通用的交通卡,地铁、巴士、便利店都能刷。坐的士时,上车说目的地,下车时说「唔該,呢度落車」。酒店前台常直接说英文 check in / check out,你也可以说「我想 check in」。',
   words: [
     W('酒店', 'zau2 dim3', '酒店'),
     W('登記', 'dang1 gei3', '登记／办理入住'),
@@ -219,6 +223,7 @@ LESSONS.push(
     W('司機', 'si1 gei1', '司机'),
     W('呢度', 'ni1 dou6', '这里'),
     W('停', 'ting4', '停'),
+    W('落車', 'lok6 ce1', '下车'),
     W('快啲', 'faai3 di1', '快一点'),
     W('趕時間', 'gon2 si4 gaan3', '赶时间'),
     W('放心', 'fong3 sam1', '放心'),
@@ -233,7 +238,8 @@ LESSONS.push(
     S('空调太冷了!', '冷氣/laang5_hei3 太/taai3 凍/dung3 喇!/laa3'),
     S('麻烦你帮我拿行李。', '唔該/m4_goi1 幫/bong1 我/ngo5 攞/lo2 行李。/hang4_lei5'),
     S('我赶时间,可以快一点吗?', '我/ngo5 趕時間,/gon2_si4_gaan3 可/ho2 唔/m4 可以/ho2_ji5 快啲/faai3_di1 呀?/aa3'),
-    S('就在这里停,谢谢。', '喺/hai2 呢度/ni1_dou6 停,/ting4 唔該。/m4_goi1'),
+    S('麻烦你,这里下车。', '唔該,/m4_goi1 呢度/ni1_dou6 落車。/lok6_ce1'),
+    S('我想 check in。', '我/ngo5 想/soeng2 check_in。/'),
     S('可以给我收据吗?', '可/ho2 唔/m4 可以/ho2_ji5 畀/bei2 收據/sau1_geoi3 我/ngo5 呀?/aa3'),
     S('可以用八达通吗?', '可/ho2 唔/m4 可以/ho2_ji5 用/jung6 八達通/baat3_daat6_tung1 呀?/aa3')
   ],
@@ -269,6 +275,7 @@ LESSONS.push(
     W('香港', 'hoeng1 gong2', '香港'),
     W('廣州', 'gwong2 zau1', '广州'),
     W('第一次', 'dai6 jat1 ci3', '第一次'),
+    W('係咪', 'hai6 mai6', '是不是', '问"是不是"最常用,比句尾加"嗎"更地道'),
     W('住', 'zyu6', '住'),
     W('仲', 'zung6', '还／还有'),
     W('咁', 'gam3', '那么／那(承接)'),
@@ -283,13 +290,13 @@ LESSONS.push(
     S('你有什么兴趣?', '你/nei5 有/jau5 咩/me1 興趣/hing3_ceoi3 呀?/aa3'),
     S('我喜欢旅行和听歌。', '我/ngo5 鍾意/zung1_ji3 旅行/leoi5_hang4 同/tung4 聽歌。/teng1_go1'),
     S('你住在哪里?', '你/nei5 住/zyu6 喺/hai2 邊度/bin1_dou6 呀?/aa3'),
-    S('你是第一次来香港吗?', '你/nei5 係/hai6 第一次/dai6_jat1_ci3 嚟/lai4 香港/hoeng1_gong2 嗎?/maa3'),
+    S('你是不是第一次来香港?', '你/nei5 係咪/hai6_mai6 第一次/dai6_jat1_ci3 嚟/lai4 香港/hoeng1_gong2 呀?/aa3'),
     S('我很喜欢这里!', '我/ngo5 好/hou2 鍾意/zung1_ji3 呢度!/ni1_dou6'),
     S('我喜欢吃东西,还喜欢爬山。', '我/ngo5 鍾意/zung1_ji3 食嘢,/sik6_je5 仲/zung6 鍾意/zung1_ji3 行山。/haang4_saan1'),
     S('欢迎你来香港!', '歡迎/fun1_jing4 你/nei5 嚟/lai4 香港!/hoeng1_gong2')
   ],
   dialog: D('闲聊', '你', '本地朋友',
-    ['B', S('你是第一次来香港吗?', '你/nei5 係/hai6 第一次/dai6_jat1_ci3 嚟/lai4 香港/hoeng1_gong2 嗎?/maa3')],
+    ['B', S('你是不是第一次来香港?', '你/nei5 係咪/hai6_mai6 第一次/dai6_jat1_ci3 嚟/lai4 香港/hoeng1_gong2 呀?/aa3')],
     ['A', S('是呀,我很喜欢这里!', '係/hai6 呀,/aa3 我/ngo5 好/hou2 鍾意/zung1_ji3 呢度!/ni1_dou6')],
     ['B', S('你喜欢什么?', '你/nei5 鍾意/zung1_ji3 啲/di1 咩/me1 呀?/aa3')],
     ['A', S('我喜欢吃东西,还喜欢爬山。', '我/ngo5 鍾意/zung1_ji3 食嘢,/sik6_je5 仲/zung6 鍾意/zung1_ji3 行山。/haang4_saan1')],
@@ -349,15 +356,16 @@ LESSONS.push(
     ['A', S('谢谢医生!', '多謝/do1_ze6 醫生!/ji1_sang1')])
 },
 {
-  id: 'L13', icon: '📱', title: '加微信与约朋友', sub: 'Staying in Touch',
+  id: 'L13', icon: '📱', title: '加联系方式与约朋友', sub: 'Staying in Touch',
   desc: '交换联系方式、约时间见面、迟到时道歉。',
   goal: '交换联系方式,约朋友见面,迟到或没空时礼貌地说明。',
   tip: '<b>畀 bei2</b> = 给,也常表示"给某人做某事":我發訊息畀你(我发信息给你)。<br>想委婉拒绝:<b>唔好意思,我嗰日唔得閒</b>。想改期:<b>下次啦!</b>',
-  culture: '约了人要准时,迟到了先说「對唔住,我遲到喇」。想交朋友,可以自然地问「我可唔可以加你微信呀?」。',
+  culture: '约了人要准时,迟到了先说「對唔住,我遲到喇」。想交朋友,可以自然地问「我可唔可以加你 WhatsApp 呀?」。香港最常用 WhatsApp,广州和内地更常用微信,按对方习惯问就好。',
   words: [
     W('手機', 'sau2 gei1', '手机'),
     W('號碼', 'hou6 maa5', '号码'),
     W('微信', 'mei4 seon3', '微信'),
+    W('WhatsApp', '', 'WhatsApp(香港最常用的聊天软件)'),
     W('加', 'gaa1', '加'),
     W('訊息', 'seon3 sik1', '信息／消息'),
     W('發', 'faat3', '发(送)'),
@@ -379,7 +387,8 @@ LESSONS.push(
     S('你的手机号码是多少?', '你/nei5 嘅/ge3 手機/sau2_gei1 號碼/hou6_maa5 係/hai6 幾多/gei2_do1 呀?/aa3'),
     S('我给你发信息。', '我/ngo5 發/faat3 訊息/seon3_sik1 畀/bei2 你。/nei5'),
     S('我打电话给你。', '我/ngo5 打電話/daa2_din6_waa2 畀/bei2 你。/nei5'),
-    S('星期六你有空吗?', '星期六/sing1_kei4_luk6 你/nei5 得閒/dak1_haan4 嗎?/maa3'),
+    S('我可不可以加你 WhatsApp?', '我/ngo5 可/ho2 唔/m4 可以/ho2_ji5 加/gaa1 你/nei5 WhatsApp/ 呀?/aa3'),
+    S('星期六你有没有空?', '星期六/sing1_kei4_luk6 你/nei5 得/dak1 唔/m4 得閒/dak1_haan4 呀?/aa3'),
     S('我们一起去吃饭吧。', '我哋/ngo5_dei6 一齊/jat1_cai4 去/heoi3 食飯/sik6_faan6 啦。/laa1'),
     S('我们在哪里见面?', '我哋/ngo5_dei6 喺/hai2 邊度/bin1_dou6 見面/gin3_min6 呀?/aa3'),
     S('我在地铁站等你。', '我/ngo5 喺/hai2 地鐵站/dei6_tit3_zaam6 等/dang2 你。/nei5'),
@@ -388,20 +397,20 @@ LESSONS.push(
     S('下次吧!', '下次/haa6_ci3 啦!/laa1')
   ],
   dialog: D('约朋友', '你', '朋友',
-    ['A', S('星期六你有空吗?', '星期六/sing1_kei4_luk6 你/nei5 得閒/dak1_haan4 嗎?/maa3')],
+    ['A', S('星期六你有没有空?', '星期六/sing1_kei4_luk6 你/nei5 得/dak1 唔/m4 得閒/dak1_haan4 呀?/aa3')],
     ['B', S('有空呀,什么事?', '得閒/dak1_haan4 呀,/aa3 咩事/me1_si6 呀?/aa3')],
     ['A', S('我们一起去吃饭吧!', '我哋/ngo5_dei6 一齊/jat1_cai4 去/heoi3 食飯/sik6_faan6 啦!/laa1')],
     ['B', S('好呀!我们在哪里见面?', '好/hou2 呀!/aa3 我哋/ngo5_dei6 喺/hai2 邊度/bin1_dou6 見面/gin3_min6 呀?/aa3')],
     ['A', S('在地铁站,七点钟。', '喺/hai2 地鐵站,/dei6_tit3_zaam6 七/cat1 點鐘。/dim2_zung1')],
     ['B', S('好,到时见!', '好,/hou2 到時/dou3_si4 見!/gin3')],
-    ['A', S('我加你微信,发信息给你。', '我/ngo5 加/gaa1 你/nei5 微信,/mei4_seon3 發/faat3 訊息/seon3_sik1 畀/bei2 你。/nei5')])
+    ['A', S('我加你 WhatsApp,发信息给你。', '我/ngo5 加/gaa1 你/nei5 WhatsApp,/ 發/faat3 訊息/seon3_sik1 畀/bei2 你。/nei5')])
 },
 {
   id: 'L14', icon: '🎉', title: '地道口语:夸奖与祝贺', sub: 'Sound Like a Local',
   desc: '学会"好正""搞掂""辛苦晒",说起来像本地人。',
   goal: '说出地道的夸奖、祝贺和口头禅,让对话更自然。',
   tip: '<b>晒 saai3</b> 放在词后,表示"全部/非常":多謝晒(非常感谢)、辛苦晒(辛苦了)、麻煩晒(麻烦你了)。<br><b>好正 hou2 zeng3</b> 和 <b>好犀利 hou2 sai1 lei6</b> 是最常用的夸奖。<b>搞掂 gaau2 dim6</b> = 搞定,听到 搞掂喇! 就是"完成了"。',
-  culture: '过年时说「新年快樂,恭喜發財」,收红包时说「多謝」。干杯说「乾杯」。听到别人说「係喎」,是"对哦、我想起来了"的意思。',
+  culture: '过年时说「新年快樂,恭喜發財」,收红包时说「多謝」。干杯说「乾杯」。听到别人说「係喎」,是"对哦、我想起来了"的意思。香港人说话常中英夹杂,如 OK、sorry、bye bye、thank you,你也可以放心地这样说。',
   words: [
     W('好正', 'hou2 zeng3', '很棒／很赞', '正 zeng3 = 棒'),
     W('好犀利', 'hou2 sai1 lei6', '很厉害'),
@@ -440,7 +449,9 @@ LESSONS.push(
     S('你说得对。', '你/nei5 講/gong2 得/dak1 啱。/ngaam1'),
     S('你很帅!', '你/nei5 好/hou2 靚仔/leng3_zai2 呀!/aa3'),
     S('对哦!', '係喎!/hai6_wo3'),
-    S('算了吧。', '算啦。/syun3_laa1')
+    S('算了吧。', '算啦。/syun3_laa1'),
+    S('OK,没问题!', 'OK,/ 冇問題!/mou5_man6_tai4'),
+    S('Sorry,我迟到了。', 'Sorry,/ 我/ngo5 遲到/ci4_dou3 喇。/laa3')
   ],
   dialog: D('生日聚会', '你', '朋友',
     ['A', S('生日快乐!', '生日快樂!/saang1_jat6_faai3_lok6')],
