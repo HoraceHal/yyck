@@ -1,0 +1,11 @@
+{
+  "name": "yuetung",
+  "private": true,
+  "version": "1.0.0",
+  "description": "粵語通 · 零基础学粤语(静态站,部署到 Cloudflare Workers)",
+  "scripts": {
+    "check": "node tools/check-data.js",
+    "dev": "npx wrangler@latest dev",
+    "deploy": "npx wrangler@latest deploy"
+  }
+}
